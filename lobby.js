@@ -50,7 +50,13 @@
   }
 
   /* ================= MODO ANFITRIÓN ================= */
-  const joinLink = () => location.href.split('?')[0].split('#')[0].replace(/index\.html$/, '');
+  // Dirección pública del juego: la que pueden abrir los celulares. Si el anfitrión abrió el juego
+  // desde su disco (file://) o desde un servidor local, el QR y el enlace usan igualmente esta.
+  const PUBLIC_URL = 'https://alejandrojimenezcardenas.github.io/escape-ambiental/';
+  const joinLink = () => {
+    const local = location.protocol === 'file:' || /^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname);
+    return local ? PUBLIC_URL : location.href.split('?')[0].split('#')[0].replace(/index\.html$/, '');
+  };
   const playerLink = (code) => `${joinLink()}?jugador&codigo=${code}`;     // abre el juego como jugador con el código escrito
 
   // QR del enlace de la partida: se dibuja módulo a módulo (negro sobre blanco, con margen) para que cualquier cámara lo lea
@@ -70,7 +76,7 @@
     ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = '#000';
     for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(c + margin, r + margin, 1, 1);
-    cv.style.width = cv.style.height = size * Math.max(4, Math.floor(210 / size)) + 'px';   // píxeles enteros: sin desenfoque
+    cv.style.width = cv.style.height = size * Math.max(4, Math.floor(280 / size)) + 'px';   // píxeles enteros: sin desenfoque
   }
 
   function renderHost(g) {
