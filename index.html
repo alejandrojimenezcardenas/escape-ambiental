@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Escape Ambiental · El Último Protocolo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Fondo pixel art (se dibuja en game.js) -->
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <canvas id="sun-glow" class="glow" width="25" height="25" aria-hidden="true"></canvas>
+  <div id="clouds" aria-hidden="true"></div>
+
+  <!-- PANTALLA 1: introducción -->
+  <main id="intro" class="screen">
+    <canvas id="planet" width="24" height="24" aria-label="Planeta Tierra en pixel art"></canvas>
+
+    <h1 class="title">ESCAPE AMBIENTAL</h1>
+    <h2 class="subtitle" aria-label="EL ÚLTIMO PROTOCOLO">EL <span class="acc" aria-hidden="true">U</span>LTIMO PROTOCOLO</h2>
+
+    <section class="dialog">
+      <p>Los sistemas de monitoreo ambiental han detectado múltiples alertas.</p>
+      <p>El Centro de Control Ambiental ha activado el protocolo de emergencia y las puertas han quedado bloqueadas.</p>
+      <p>Para escapar deberán superar diferentes desafíos ambientales y recuperar las claves de seguridad.</p>
+      <p><strong>El tiempo es limitado.</strong></p>
+    </section>
+
+    <div class="alert" role="alert">🚨 PROTOCOLO AMBIENTAL ACTIVADO</div>
+
+    <button id="start" type="button" class="btn">[ COMENZAR ]</button>
+  </main>
+
+  <!-- PANTALLA 2: sala principal (solo escenario; el suelo y los muebles se dibujan en game.js).
+       Posiciones en píxeles lógicos del lienzo: 256 x 200. -->
+  <main id="room-screen" class="screen" hidden>
+    <div id="room" aria-label="Sala principal con cuatro estaciones y una salida bloqueada">
+      <canvas id="room-canvas" width="256" height="200"></canvas>
+
+      <div class="station at" data-station="archivo" role="button" tabindex="0" aria-label="Archivo Ambiental" style="--lx:16;--ly:32;--lw:72;--lh:48;--accent:#c9873a">
+        <div class="plate"><span class="ico">📜</span><span>ARCHIVO<br>AMBIENTAL</span></div>
+      </div>
+      <div class="station at" data-station="laboratorio" role="button" tabindex="0" aria-label="Laboratorio EPI" style="--lx:168;--ly:32;--lw:72;--lh:48;--accent:#2a7de1">
+        <div class="plate"><span class="ico">📊</span><span>LABORATORIO<br>EPI</span></div>
+      </div>
+      <div class="station at" data-station="emergencias" role="button" tabindex="0" aria-label="Centro de Emergencias" style="--lx:16;--ly:104;--lw:72;--lh:48;--accent:#e8433f">
+        <div class="plate"><span class="ico">🚨</span><span>CENTRO DE<br>EMERGENCIAS</span></div>
+      </div>
+      <div class="station at" data-station="nucleo" role="button" tabindex="0" aria-label="Núcleo Ambiental" style="--lx:168;--ly:104;--lw:72;--lh:48;--accent:#7b4fd1">
+        <div class="plate"><span class="ico">🔐</span><span>N<span class="acc">U</span>CLEO<br>AMBIENTAL</span></div>
+      </div>
+
+      <div class="exit-plate at" style="--lx:100;--ly:167;--lw:56;--lh:13">
+        <span>🚪 SALIDA</span>
+        <span class="locked">🔒 BLOQUEADA</span>
+      </div>
+      <span class="light at" style="--lx:93;--ly:186;--lw:4;--lh:3"></span>
+      <span class="light at" style="--lx:159;--ly:186;--lw:4;--lh:3"></span>
+    </div>
+    <p class="hint">Toca una estación para entrar</p>
+  </main>
+
+  <!-- LOBBY: vista anfitrión (pantalla grande) y vista jugador (celular) -->
+  <main id="lobby-screen" class="screen flow" hidden>
+    <div class="stack">
+      <div class="tabs" role="tablist">
+        <button id="tab-host" class="tab on" type="button" role="tab">📺 ANFITRIÓN</button>
+        <button id="tab-player" class="tab" type="button" role="tab">📱 JUGADOR</button>
+      </div>
+
+      <section id="view-host" class="card lobby-card">
+        <h2 class="lobby-title">ESCAPE AMBIENTAL</h2>
+        <p class="label">CÓDIGO DE PARTIDA</p>
+        <div id="game-code" class="code" aria-live="polite"></div>
+        <p class="muted">Los jugadores se unen con este código desde el celular.</p>
+        <div class="roster-head"><span>JUGADORES</span><span id="player-count">0/10 jugadores</span></div>
+        <ul id="roster" class="roster"></ul>
+        <button id="start-mission" type="button" class="btn">INICIAR MISIÓN</button>
+        <button id="add-test" type="button" class="btn-small">+ JUGADOR DE PRUEBA</button>
+      </section>
+
+      <section id="view-player" class="card player-card" hidden>
+        <form id="join-form" autocomplete="off" novalidate>
+          <h2 class="lobby-title">¡ÚNETE A LA MISIÓN!</h2>
+          <label class="label" for="join-code">CÓDIGO DE PARTIDA</label>
+          <input id="join-code" class="input code-input" type="text" maxlength="5" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="A7K9P">
+          <label class="label" for="join-name">TU NOMBRE O APODO</label>
+          <input id="join-name" class="input" type="text" maxlength="12" autocomplete="off" placeholder="Ej: Luna">
+          <p id="join-error" class="form-error" role="alert" hidden></p>
+          <button id="join-btn" type="submit" class="btn">UNIRME</button>
+        </form>
+        <div id="join-done" hidden>
+          <div id="join-avatar" class="avatar big"></div>
+          <h2 class="lobby-title ok">¡ESTÁS DENTRO!</h2>
+          <p id="join-name-out" class="player-name"></p>
+          <p class="waiting">Esperando que comience la misión<span class="dots-anim"></span></p>
+          <button id="sim-start" type="button" class="btn-small">(prueba) SIMULAR INICIO DEL ANFITRIÓN</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ESTACIÓN (genérica: el contenido lo pone cada estación) -->
+  <main id="station-screen" class="screen flow" hidden>
+    <div class="stack st-stack">
+      <header class="st-head">
+        <h2 id="st-title" class="st-title"></h2>
+        <p id="st-sub" class="st-sub"></p>
+        <canvas id="shelf" width="96" height="10" aria-hidden="true"></canvas>
+      </header>
+      <div class="st-progress"><span id="st-count"></span><div id="st-dots" class="dots"></div></div>
+      <section id="challenge" class="card challenge" aria-live="polite"></section>
+      <button id="st-exit" type="button" class="btn-small">← VOLVER AL MAPA</button>
+    </div>
+    <div id="feedback" class="feedback" hidden></div>
+  </main>
+
+  <!-- ESTACIÓN COMPLETADA -->
+  <main id="complete-screen" class="screen flow" hidden>
+    <div class="stack">
+      <div class="card complete-card">
+        <p class="banner-done">¡ESTACIÓN COMPLETADA!</p>
+        <h2 id="done-title" class="done-title"></h2>
+        <p class="done-points">+500 PUNTOS</p>
+        <p id="done-detail" class="muted"></p>
+        <div class="done-stations"><span class="k">ESTACIONES</span><span id="done-stations" class="v">1/4</span></div>
+        <button id="done-back" type="button" class="btn">VOLVER AL MAPA</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- HUD de la partida: tiempo, puntos y estaciones -->
+  <header id="hud" aria-label="Estado de la partida">
+    <div class="stat"><span class="k">TIEMPO</span><span id="hud-time" class="v">00:00</span></div>
+    <div class="stat"><span class="k">PUNTOS</span><span id="hud-points" class="v">0</span></div>
+    <div class="stat"><span class="k">ESTACIONES</span><span id="hud-stations" class="v">0/4</span></div>
+  </header>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="wipe" aria-hidden="true"><div id="wipe-grid"></div><div id="wipe-text"></div></div>
+
+  <script src="game.js"></script>
+  <script src="lobby.js"></script>
+  <script src="partida.js"></script>
+  <script src="archivo.js"></script>
+  <script src="emergencias.js"></script>
+  <script src="laboratorio.js"></script>
+  <script src="nucleo.js"></script>
+</body>
+</html>
