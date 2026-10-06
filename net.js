@@ -42,6 +42,7 @@
     finishedAt: ts(r.finished_at),
     exitStatus: r.exit_status,
     exitAt: ts(r.exit_at),
+    finalRank: r.final_rank || 0,         // 1, 2 o 3 si está en el podio
     joinedAt: ts(r.joined_at),
   });
 
@@ -274,6 +275,13 @@
       const row = await this.call('finish_game', { p_room: this.room.id });
       this.room = mapRoom(row);
       this.emit();
+    },
+
+    // SOLO el anfitrión (el servidor lo comprueba): termina la partida para todos
+    async endGame() {
+      const row = await this.call('end_game', { p_room: this.room.id });
+      this.room = mapRoom(row);
+      await this.refresh();           // trae el podio calculado por el servidor
     },
 
     /* ---------- durante la partida ---------- */

@@ -148,6 +148,10 @@
       </div>
       <span class="light at" style="--lx:93;--ly:186;--lw:4;--lh:3"></span>
       <span class="light at" style="--lx:159;--ly:186;--lw:4;--lh:3"></span>
+      <!-- Puerta animada: cubre la puerta dibujada y se abre cuando un jugador sale -->
+      <div id="door" class="at" style="--lx:101;--ly:184;--lw:54;--lh:16" aria-hidden="true">
+        <i class="glow"></i><i class="leaf l"></i><i class="leaf r"></i>
+      </div>
 
       <canvas id="actors" width="256" height="200" aria-hidden="true"></canvas>
       <div id="labels" aria-hidden="true"></div>
@@ -214,7 +218,33 @@
     <div class="rot-line"></div>
   </div>
 
-  <!-- Podio final -->
+  <!-- Botón del anfitrión (solo computador) + confirmación -->
+  <button id="end-game" type="button" class="btn-small end-btn" hidden>⏹ TERMINAR PARTIDA</button>
+  <div id="confirm-end" class="modal" role="dialog" aria-modal="true" hidden>
+    <div class="card overlay-card">
+      <h2 class="done-title">¿Seguro que deseas terminar la partida?</h2>
+      <p class="ov-text">Se terminará para todos los jugadores y se mostrará el podio.</p>
+      <div class="modal-btns">
+        <button id="end-cancel" type="button" class="btn-small">CANCELAR</button>
+        <button id="end-confirm" type="button" class="btn-small danger">TERMINAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pantalla de espera del jugador que ya escapó (sigue dentro de la sala) -->
+  <section id="escaped" hidden aria-live="polite">
+    <div class="card escaped-card">
+      <h2 class="escaped-title">🔓 ¡ESCAPASTE!</h2>
+      <div id="esc-sprite" class="walker"></div>
+      <p id="esc-name" class="preview-name"></p>
+      <p id="esc-stats" class="esc-stats"></p>
+      <p class="waiting">Esperando a que termine la partida<span class="dots-anim"></span></p>
+      <p class="muted">El anfitrión mostrará el resultado final.</p>
+      <p class="esc-time">TIEMPO RESTANTE <b id="esc-time">--:--</b></p>
+    </div>
+  </section>
+
+  <!-- Podio final: lo ven todos los dispositivos de la sala a la vez -->
   <section id="podium" hidden aria-live="polite">
     <div class="card podium-card">
       <h2 class="podium-title">🏁 PARTIDA TERMINADA</h2>

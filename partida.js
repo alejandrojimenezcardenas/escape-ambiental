@@ -58,7 +58,8 @@
     finishedChallenges: JSON.parse(JSON.stringify(p.challenges || {})),   // id -> [true/false por reto]; un solo intento
     finishedAt: p.finishedAt || 0,                     // momento en que completó 4/4
     eligibleForExit: false,
-    reachedExit: p.exitStatus === 'reached',
+    reachedExit: p.exitStatus === 'reached',           // el servidor ya le concedió la salida
+    escaped: p.exitStatus === 'reached',               // ya atravesó la puerta (se oculta del mapa)
   });
 
   /* ---------------- utilidades ---------------- */
@@ -170,20 +171,25 @@
 
   // Corre en el mapa, dentro de las estaciones y en la pantalla de completado
   function tick() {
+    if (state.ended) return;                       // la partida terminó: el reloj ya no avanza
     const now = nowMs();
     updateCountdown(now);
-    if (!state.ended && now >= state.startAt) state.running = true;
+    if (now >= state.startAt) state.running = true;
     const t = formatTime(remaining());
     if (t !== shownTime) {
       shownTime = t;
       const el = $('hud-time');
       el.textContent = t;
       el.classList.toggle('low', remaining() <= 60000);
+      if (!$('escaped').hidden) $('esc-time').textContent = t;
     }
     if (state.running && remaining() === 0) endByTime();
   }
 
-  function endByTime() {
+  /* ---------------- final de la partida ---------------- */
+  // Bloquea todo en este dispositivo: movimiento, estaciones, respuestas, salida y reloj.
+  function lockPlay() {
+    if (state.ended) return;
     state.running = false;
     state.ended = true;
     clearInterval(state.clockId);
@@ -196,18 +202,38 @@
     }
     $('overlay').hidden = true;
     $('act').hidden = true;
+    $('count').hidden = true;
+    $('confirm-end').hidden = true;
+    $('end-game').hidden = true;
     EA.showScreen('room-screen');
+  }
+
+  // 00:00: se bloquea el juego y se pide al SERVIDOR que cierre la partida. Quien la cierra la cierra
+  // para todos: el podio aparece en cada dispositivo cuando la sala pasa a "finished" (Realtime).
+  async function endByTime() {
+    if (state.ended) return;
+    lockPlay();
+    showToast('⏱ ¡TIEMPO AGOTADO! Calculando el resultado…', 6000);
+    for (let i = 0; i < 90 && !finalShown; i++) {
+      try { await B().finishGame(); } catch (e) { /* sin conexión: reintenta */ }
+      const g = B().snapshot();
+      if (g && g.status === 'finished') { showFinal(); break; }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  // La sala pasó a "finished" (el anfitrión terminó la partida o se acabó el tiempo): todos al podio
+  function onRoomFinished() {
+    if (!state.role) return;
+    lockPlay();
     showFinal();
   }
 
-  /* ---------------- final y podio ---------------- */
-  // Podio: los jugadores que llegaron a la salida (4/4 + 1.200 + top 3), ordenados por puntaje;
-  // desempate: quién llegó antes a la salida.
+  /* ---------------- podio ---------------- */
+  // El servidor calcula el podio al cerrar la partida (players.final_rank):
+  // elegibles = 4/4 y 1.200+, máximo 3, por puntaje; desempate: llegada a la salida.
   function podiumRows(players) {
-    return players
-      .filter((q) => q.exitStatus === 'reached')
-      .sort((a, b) => b.score - a.score || (a.exitAt || Infinity) - (b.exitAt || Infinity))
-      .slice(0, EXIT_TOP);
+    return players.filter((q) => q.finalRank > 0).sort((a, b) => a.finalRank - b.finalRank).slice(0, EXIT_TOP);
   }
 
   function renderPodium(players) {
@@ -215,17 +241,18 @@
     body.innerHTML = '';
     const rows = podiumRows(players);
     if (!rows.length) {
-      body.append(h('p', 'podium-none', 'NINGÚN JUGADOR LOGRÓ COMPLETAR EL PROTOCOLO'));
+      body.append(h('p', 'podium-none', 'NADIE LOGRÓ COMPLETAR EL PROTOCOLO'));
     } else {
-      const medals = [['🥇', 'PRIMER LUGAR'], ['🥈', 'SEGUNDO LUGAR'], ['🥉', 'TERCER LUGAR']];
+      const medals = [['🥇', '1.º LUGAR'], ['🥈', '2.º LUGAR'], ['🥉', '3.º LUGAR']];
       const list = h('div', 'podium-list');
       rows.forEach((q, i) => {
         const row = h('div', 'podium-row place' + (i + 1) + (me() && q.id === me().playerId ? ' me' : ''));
         const spr = h('div', 'podium-spr');
-        if (q.characterId) spr.append(EA.charCanvas(q.characterId));
+        const ch = q.characterId ? EA.charById(q.characterId) : null;
+        if (ch) spr.append(EA.charCanvas(ch.id));
         const info = h('div', 'podium-info');
         info.append(h('span', 'podium-place', `${medals[i][0]} ${medals[i][1]}`), h('span', 'podium-name', q.name),
-          h('span', 'podium-pts', `${q.score} PUNTOS`));
+          h('span', 'podium-char', ch ? `PERSONAJE: ${ch.name}` : ''), h('span', 'podium-pts', `${q.score} PUNTOS`));
         row.append(spr, info);
         list.append(row);
       });
@@ -240,16 +267,34 @@
     finalShown = true;
     EA.backend.clearSession();                     // la partida terminó: no se retoma al recargar
     $('count').hidden = true;
+    $('escaped').hidden = true;
+    $('confirm-end').hidden = true;
+    $('end-game').hidden = true;
+    $('podium-body').innerHTML = '';
+    $('podium-body').append(h('p', 'podium-none calc', 'CALCULANDO RESULTADO…'));
     $('podium').hidden = false;
-    renderPodium(B().snapshot() ? B().snapshot().players : []);
-    try { await B().finishGame(); } catch (e) { /* el servidor cierra la sala cuando alguien lo consigue */ }
-    // los últimos datos (alguien pudo llegar a la salida justo antes del 00:00)
-    for (let i = 0; i < 2; i++) {
-      await new Promise((r) => setTimeout(r, i ? 2000 : 700));
+    for (let i = 0; i < 3; i++) {
       try { await B().refresh(); } catch (e) { /* se reintenta */ }
       const g = B().snapshot();
-      if (g) renderPodium(g.players);
+      if (g && g.status === 'finished') { renderPodium(g.players); break; }
+      await new Promise((r) => setTimeout(r, 1500));
     }
+  }
+
+  // Pantalla de espera de quien ya escapó: sigue dentro de la sala hasta el podio
+  function showEscaped() {
+    const p = me();
+    if (!p || finalShown) return;
+    const ch = EA.charById(p.characterId);
+    if (ch) {
+      $('esc-sprite').style.backgroundImage = `url(${EA.charStrip(ch.id)})`;
+      $('esc-name').textContent = `${ch.icon} ${p.name} · ${ch.name}`;
+    }
+    $('esc-stats').textContent = `${p.score} PUNTOS · ${p.completedStations.length}/${TOTAL_STATIONS} ESTACIONES`;
+    $('esc-time').textContent = shownTime || formatTime(remaining());
+    $('act').hidden = true;
+    $('escaped').hidden = false;
+    EA.fixAccents($('escaped'));
   }
 
   /* ---------------- puntos y estaciones ---------------- */
@@ -325,10 +370,11 @@
       const res = await B().claimExit();
       const done = p.completedStations.length;
       if (res.status === 'reached') {
+        // El servidor ya registró la salida. Se abre la puerta, el personaje sale y pasa a la pantalla
+        // de espera DENTRO de la misma sala (no se pide el código otra vez).
         p.reachedExit = true;
         refreshEligibility();
-        showOverlay('🔓 ¡LLEGASTE A LA SALIDA!',
-          `Completaste las 4 estaciones con ${p.score} puntos y estás en el puesto ${res.rank || ''} entre los elegibles. El podio se define cuando termina el tiempo.`);
+        EA.map.playExit(() => { p.escaped = true; showEscaped(); });
       } else if (res.status === 'blocked') {
         showToast(`🔒 SALIDA BLOQUEADA · Cumples los requisitos, pero hay ${res.rank - 1} jugadores elegibles con más puntaje. Solo salen los 3 mejores.`, 4200);
       } else {
@@ -388,6 +434,9 @@
     finalShown = false;
     wasMoving = false;
     $('podium').hidden = true;
+    $('escaped').hidden = true;
+    $('confirm-end').hidden = true;
+    $('end-game').hidden = !(role === 'host' && !EA.map.isTouch());   // solo el anfitrión, solo en computador
     document.body.classList.toggle('role-host', role === 'host');
     document.body.classList.toggle('role-player', role === 'player');
     clearStationMarks();
@@ -412,6 +461,7 @@
     EA.map.start(game, state.player);
     tick();
     state.clockId = setInterval(tick, 100);
+    if (state.player && state.player.escaped) showEscaped();     // retomó la partida después de haber escapado
   }
 
   /* ---------------- estaciones ---------------- */
@@ -738,6 +788,29 @@
   $('feedback').addEventListener('click', () => { if (state.nextTimer && state.advance) state.advance(); });
   $('st-exit').addEventListener('click', closeStation);
   $('done-back').addEventListener('click', () => EA.showScreen('room-screen'));
+  // El fin de la partida llega por la sala (Realtime): todos los dispositivos pasan al mismo podio
+  EA.backend.subscribe((g) => {
+    if (!g || !state.role) return;
+    if (g.status === 'finished') onRoomFinished();
+    if (finalShown) renderPodium(g.players);                       // el podio se actualiza si llegan datos nuevos
+  });
+
+  // TERMINAR PARTIDA: solo el anfitrión (el servidor lo vuelve a comprobar)
+  const hostCanEnd = () => state.role === 'host' && !EA.map.isTouch() && !state.ended;
+  $('end-game').addEventListener('click', () => { if (hostCanEnd()) $('confirm-end').hidden = false; });
+  $('end-cancel').addEventListener('click', () => { $('confirm-end').hidden = true; });
+  $('end-confirm').addEventListener('click', async () => {
+    if (!hostCanEnd()) return;
+    $('end-confirm').disabled = true;
+    try {
+      await B().endGame();                         // el servidor cierra la sala; Realtime avisa a todos
+      $('confirm-end').hidden = true;
+    } catch (e) {
+      showToast('No se pudo terminar la partida. Revisa tu conexión e inténtalo de nuevo.', 3500);
+    }
+    $('end-confirm').disabled = false;
+  });
+
   const goHome = () => {
     EA.backend.clearSession('host');
     EA.backend.clearSession('player');

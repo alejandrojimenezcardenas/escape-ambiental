@@ -43,6 +43,9 @@ create table if not exists public.players (
   unique (room_id, user_id)
 );
 
+-- Resultado final (lo fija el servidor al terminar la partida): 1, 2 o 3 = puesto en el podio
+alter table public.players add column if not exists final_rank int;
+
 -- Puntaje: 5 retos x 100 + 500 de bonus por estación = 1.000 por estación, 4.000 en total
 alter table public.players drop constraint if exists players_score_check;
 alter table public.players add constraint players_score_check check (score between 0 and 4000);
@@ -187,6 +190,21 @@ begin
   return r;
 end $$;
 
+-- Calcula el podio de la sala: elegibles (4/4 y 1.200+), máximo 3, por puntaje;
+-- desempate: quién llegó antes a la salida. Se guarda en players.final_rank.
+create or replace function public._finalize_room(rid uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.players set final_rank = null where room_id = rid;
+  update public.players p set final_rank = r.rk
+    from (
+      select id, row_number() over (order by score desc, exit_at asc nulls last, finished_at asc nulls last) as rk
+        from public.players
+       where room_id = rid and coalesce(array_length(completed_stations, 1), 0) = 4 and score >= 1200
+    ) r
+   where p.id = r.id and r.rk <= 3;
+end $$;
+
 -- Cualquiera de la sala: cierra la partida cuando el reloj del SERVIDOR pasó los 15:00
 create or replace function public.finish_game(p_room uuid)
 returns public.rooms language plpgsql security definer set search_path = public as $$
@@ -195,6 +213,21 @@ begin
   if not public.can_see_room(p_room) then raise exception 'not_in_room'; end if;
   select * into r from public.rooms where id = p_room for update;
   if r.status = 'playing' and now() >= r.start_at + interval '15 minutes' then
+    perform public._finalize_room(r.id);
+    update public.rooms set status = 'finished' where id = r.id returning * into r;
+  end if;
+  return r;
+end $$;
+
+-- SOLO EL ANFITRIÓN: termina la partida para todos (botón TERMINAR PARTIDA)
+create or replace function public.end_game(p_room uuid)
+returns public.rooms language plpgsql security definer set search_path = public as $$
+declare r public.rooms;
+begin
+  select * into r from public.rooms where id = p_room for update;
+  if not found or r.host_id <> auth.uid() then raise exception 'not_host'; end if;
+  if r.status = 'playing' then
+    perform public._finalize_room(r.id);
     update public.rooms set status = 'finished' where id = r.id returning * into r;
   end if;
   return r;
@@ -223,6 +256,7 @@ declare
   ss jsonb := '{}'::jsonb; total int := 0; comp text[]; done text[] := '{}'; st int;
 begin
   p := public._active_player();
+  if p.exit_status = 'reached' then raise exception 'already_exited'; end if;      -- quien ya salió no suma más puntos
   if p_challenges is null or jsonb_typeof(p_challenges) <> 'object' then raise exception 'bad_data'; end if;
   for k, arr in select key, value from jsonb_each(p_challenges) loop
     if not (k = any (valid)) or jsonb_typeof(arr) <> 'array' or jsonb_array_length(arr) > 5 then raise exception 'bad_data'; end if;
@@ -287,7 +321,7 @@ end $$;
 revoke execute on all functions in schema public from public, anon;
 grant execute on function
   public.server_now(), public.create_room(), public.join_room(text, text), public.choose_character(text),
-  public.start_game(uuid), public.finish_game(uuid), public.report_progress(jsonb),
+  public.start_game(uuid), public.finish_game(uuid), public.end_game(uuid), public.report_progress(jsonb),
   public.save_position(real, real), public.claim_exit(),
   public.can_see_room(uuid), public.can_use_topic(text)          -- las usan las políticas RLS
   to authenticated;

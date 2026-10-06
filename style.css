@@ -1475,3 +1475,57 @@ body.touch #go-host { display: none; }          /* el anfitrión solo funciona d
 .qr-box[hidden] { display: none; }
 .join-qr { display: block; max-width: 100%; image-rendering: pixelated; background: #fff; box-shadow: 0 0 0 4px var(--ink); }
 .qr-cap { margin: 4px 0 0; font-size: clamp(8px, 2vw, 11px); line-height: 1.6; color: var(--green-dark); }
+/* =====================================================================
+   FASE FINAL — terminar partida, puerta animada, espera y podio
+   ===================================================================== */
+
+/* Botón del anfitrión (solo computador) */
+.end-btn { position: fixed; left: 14px; bottom: 14px; z-index: 8; margin: 0; color: #fff; background: var(--red); box-shadow: 0 0 0 3px var(--ink), inset 0 -4px 0 rgba(0, 0, 0, .25); }
+.end-btn[hidden] { display: none; }
+body:not(.in-room) .end-btn, body.touch .end-btn { display: none; }
+
+.modal { position: fixed; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(29, 43, 83, .72); }
+.modal[hidden] { display: none; }
+.modal-btns { display: flex; justify-content: center; gap: 16px; margin-top: 12px; }
+.modal-btns .btn-small { margin-top: 0; min-width: 130px; padding: 14px 16px; }
+.btn-small.danger { color: #fff; background: var(--red); }
+
+/* Puerta de salida animada: cubre la puerta dibujada; las hojas se abren hacia los lados */
+#door { z-index: 1; overflow: hidden; opacity: 0; pointer-events: none; }
+#door.on { opacity: 1; }
+#door .glow { position: absolute; inset: 0; background: linear-gradient(#fffbd0, #ffe14d 55%, #ffb347); }
+#door .leaf {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background:
+    linear-gradient(rgba(255, 255, 255, .25) 0 8%, transparent 8%),
+    repeating-linear-gradient(0deg, #a7b3c6 0 38%, #8f9cb0 38% 50%);
+  box-shadow: inset 0 0 0 .6cqw #5a6678;
+  transition: transform .7s steps(7);
+}
+#door .l { left: 0; }
+#door .r { right: 0; }
+#door.open .l { transform: translateX(-100%); }
+#door.open .r { transform: translateX(100%); }
+
+/* Pantalla de espera de quien ya escapó (sigue dentro de la sala) */
+#escaped { position: fixed; inset: 0; z-index: 28; display: flex; align-items: center; justify-content: center; padding: 14px; overflow-y: auto; background: rgba(42, 125, 225, .88); animation: fadein .5s steps(5) both; }
+#escaped[hidden] { display: none; }
+.escaped-card { max-width: 480px; margin-block: auto; text-align: center; }
+.escaped-title { margin: 0 0 8px; font-size: clamp(16px, 5vw, 28px); line-height: 1.4; color: var(--green-dark); animation: pulse 1.4s steps(2) infinite; }
+.escaped-card .walker { margin: 4px auto; }
+.esc-stats { margin: 0 0 12px; font-size: clamp(9px, 2.4vw, 12px); line-height: 1.7; color: #5a6678; }
+.esc-time { margin: 10px 0 0; font-size: clamp(8px, 2vw, 11px); color: #5a6678; }
+.esc-time b { margin-left: 6px; font-size: 1.5em; font-weight: normal; color: var(--ink); }
+@media (max-height: 480px) {
+  #escaped .walker { --s: 48px; }
+  .escaped-title { margin-bottom: 2px; font-size: 14px; }
+  .escaped-card .muted, .escaped-card .waiting { margin-bottom: 2px; font-size: 8px; }
+  .esc-time { margin-top: 4px; }
+}
+
+/* Podio: texto del personaje y mensaje de cálculo */
+.podium-char { font-size: clamp(7px, 1.9vw, 10px); color: #5a6678; }
+.podium-none.calc { color: var(--ink); animation: alertpulse 1.2s ease-in-out infinite; }

@@ -105,6 +105,10 @@
 
   function start(game, player) {
     $('labels').innerHTML = '';
+    exitAnim = null;
+    $('door').classList.remove('on', 'open');
+    const lockTxt = document.querySelector('.exit-plate .locked');
+    if (lockTxt) lockTxt.textContent = '🔒 BLOQUEADA';
     actors = game.players.filter((p) => p.characterId).map((p) => {
       const idx = game.players.indexOf(p);
       const never = p.x === 128 && p.y === 92;                  // aún no se ha movido: sale de su puesto
@@ -152,7 +156,9 @@
     g.players.forEach((p) => {
       const a = actors.find((x) => x.id === p.id);
       if (!a || a.isMe) return;
-      a.hidden = p.exitStatus === 'reached';
+      // quien salió se ve llegar a la puerta y desaparece un instante después
+      if (p.exitStatus === 'reached') { if (!a.hideTimer) a.hideTimer = setTimeout(() => { a.hidden = true; }, 2800); }
+      else { clearTimeout(a.hideTimer); a.hideTimer = 0; a.hidden = false; }
       if (!a.remoteMoving && performance.now() - a.lastMsg > 3000) { a.tx = p.x; a.ty = p.y; }
     });
   });
@@ -168,7 +174,7 @@
   function clearKeys() { Object.keys(held).forEach((k) => { held[k] = false; }); }
 
   const inRoom = () => document.body.classList.contains('in-room');
-  const canPlay = () => !!mine && EA.state.running && !blocked() && !EA.state.player.reachedExit && $('overlay').hidden;
+  const canPlay = () => !!mine && EA.state.running && !blocked() && !EA.state.player.reachedExit && !exitAnim && $('overlay').hidden;
 
   window.addEventListener('keydown', (e) => {
     if (!mine || !inRoom()) return;
@@ -287,6 +293,51 @@
   act.addEventListener('mousedown', (e) => e.preventDefault());     // no roba el foco del teclado
   act.addEventListener('click', interact);
 
+  /* ---------------- salida: la puerta se abre y el personaje sale ----------------
+     Secuencia: camina hasta la puerta → las hojas se abren → atraviesa la salida → pantalla de espera.
+     El servidor ya registró la salida antes de empezar; esto es solo la parte visual (≈3 s). */
+  let exitAnim = null;
+
+  function playExit(done) {
+    if (!mine || exitAnim) { if (done) done(); return; }
+    clearKeys();
+    releaseJoy();
+    const door = $('door');
+    door.classList.add('on');                            // las hojas cubren la puerta dibujada
+    exitAnim = { phase: 'walk', opened: false, done };
+    setTimeout(() => door.classList.add('open'), 300);   // las hojas se deslizan
+    setTimeout(() => { if (exitAnim) exitAnim.opened = true; }, 1100);
+    const lock = document.querySelector('.exit-plate .locked');
+    if (lock) lock.textContent = '🔓 ABIERTA';
+  }
+
+  function stepExit(dt) {
+    const a = exitAnim;
+    const tx = 128;
+    const ty = a.phase === 'walk' ? 172 : 216;           // primero hasta la puerta; después, hacia afuera
+    const speed = a.phase === 'walk' ? 52 : 40;
+    const dx = tx - mine.x;
+    const dy = ty - mine.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1.5) {
+      if (a.phase === 'walk') {
+        mine.dir = 'down';
+        if (a.opened) a.phase = 'down';                  // espera a que la puerta termine de abrirse
+        else mine.moving = false;
+      } else {
+        exitAnim = null;
+        mine.moving = false;
+        if (a.done) a.done();
+      }
+      return;
+    }
+    const step = Math.min(d, speed * dt);
+    mine.x += (dx / d) * step;
+    mine.y += (dy / d) * step;
+    mine.dir = facing(dx, dy);
+    mine.moving = true;
+  }
+
   /* ---------------- simulación ---------------- */
   function updateMine(dt) {
     let vx = (held.right ? 1 : 0) - (held.left ? 1 : 0);
@@ -366,9 +417,10 @@
     if (frame.away) { frame.away = false; target = undefined; frame.lastKey = null; }   // al volver, recalcula el aviso
 
     if (mine) {
-      if (canPlay()) updateMine(dt);
+      if (exitAnim) stepExit(dt);
+      else if (canPlay()) updateMine(dt);
       else mine.moving = false;
-      mine.hidden = EA.state.player.reachedExit;
+      mine.hidden = EA.state.player.escaped;               // desaparece del mapa solo cuando ya cruzó la puerta
       const p = EA.state.player;
       p.x = mine.x;
       p.y = mine.y;
@@ -401,5 +453,5 @@
 
   applyDevice();
 
-  EA.map = { start, spawn, isTouch, blocked, actors: () => actors };
+  EA.map = { start, spawn, isTouch, blocked, playExit, actors: () => actors };
 })();
