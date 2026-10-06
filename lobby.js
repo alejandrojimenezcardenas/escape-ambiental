@@ -51,6 +51,27 @@
 
   /* ================= MODO ANFITRIÓN ================= */
   const joinLink = () => location.href.split('?')[0].split('#')[0].replace(/index\.html$/, '');
+  const playerLink = (code) => `${joinLink()}?jugador&codigo=${code}`;     // abre el juego como jugador con el código escrito
+
+  // QR del enlace de la partida: se dibuja módulo a módulo (negro sobre blanco, con margen) para que cualquier cámara lo lea
+  function drawQR(text) {
+    const cv = $('join-qr');
+    if (typeof window.qrcode !== 'function') { cv.parentElement.hidden = true; return; }   // sin la librería: se usa el enlace
+    cv.parentElement.hidden = false;
+    const qr = window.qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const n = qr.getModuleCount();
+    const margin = 4;
+    const size = n + margin * 2;
+    cv.width = cv.height = size;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000';
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(c + margin, r + margin, 1, 1);
+    cv.style.width = cv.style.height = size * Math.max(4, Math.floor(210 / size)) + 'px';   // píxeles enteros: sin desenfoque
+  }
 
   function renderHost(g) {
     const mine = !!g;
@@ -64,6 +85,7 @@
       codeBox.innerHTML = [...g.code].map((c) => `<span class="ch">${c}</span>`).join('');
       codeBox.setAttribute('aria-label', 'Código ' + g.code.split('').join(' '));
       $('join-url').textContent = joinLink();
+      drawQR(playerLink(g.code));
     }
     $('player-count').textContent = `${g.players.length}/${MAX_PLAYERS}`;
 
@@ -319,7 +341,7 @@
   $('copy-link').addEventListener('click', () => {
     const g = B.snapshot();
     if (!g) return;
-    const link = `${joinLink()}?jugador&codigo=${g.code}`;
+    const link = playerLink(g.code);
     const done = () => EA.showToast('📋 ENLACE COPIADO');
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => EA.showToast(link, 4000));
     else EA.showToast(link, 4000);

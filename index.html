@@ -56,7 +56,11 @@
         <div id="host-game" hidden>
           <p class="label">CÓDIGO DE PARTIDA</p>
           <div id="game-code" class="code" aria-live="polite"></div>
-          <p class="muted join-help">Los jugadores abren <b id="join-url" class="join-url"></b> desde su celular o computador y escriben este código.</p>
+          <div class="qr-box">
+            <canvas id="join-qr" class="join-qr" aria-label="Código QR para unirse a la partida"></canvas>
+            <p class="qr-cap">📱 ESCANÉALO CON LA CÁMARA DEL CELULAR</p>
+          </div>
+          <p class="muted join-help">O abren <b id="join-url" class="join-url"></b> desde su celular o computador y escriben este código.</p>
           <button id="copy-link" type="button" class="btn-small">📋 COPIAR ENLACE PARA JUGADORES</button>
           <div class="roster-head"><span>JUGADORES</span><span id="player-count">0/10</span></div>
           <ul id="roster" class="roster"></ul>
@@ -223,6 +227,7 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <script src="supabase-config.js"></script>
   <script src="game.js"></script>
   <script src="characters.js"></script>
