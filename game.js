@@ -722,16 +722,15 @@
     drawPlanet();
     makeClouds();
     drawRoom();
-    ['lobby-screen', 'station-screen', 'complete-screen', 'hud'].forEach((id) => EA.fixAccents(document.getElementById(id)));
+    ['intro', 'host-screen', 'player-screen', 'station-screen', 'complete-screen', 'hud', 'rotate']
+      .forEach((id) => EA.fixAccents(document.getElementById(id)));
 
     let resizeTimer;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(drawBackground, 100);
     });
-
-    // COMENZAR lleva ahora al lobby (lobby.js); la sala se muestra al iniciar la misión
-    document.getElementById('start').addEventListener('click', () => EA.goLobby());
+    // Los botones ANFITRIÓN / JUGADOR los conecta lobby.js
   }
 
   init();

@@ -1,230 +1,372 @@
 /* ============================================================
-   LOBBY — vista anfitrión y vista jugador
+   LOBBY — modo ANFITRIÓN y modo JUGADOR (separados), con sala real
 
-   La conexión entre dispositivos todavía NO existe: LocalBackend
-   guarda la partida en memoria y simula jugadores. Toda la interfaz
-   habla únicamente con `backend` (createGame / joinGame / startGame /
-   subscribe). Para pasar a Supabase Realtime basta con crear otro
-   objeto con esos mismos métodos y asignarlo a EA.backend.
+   Toda la comunicación pasa por EA.backend (net.js → Supabase).
+   - Computador: puede ser ANFITRIÓN (crea la sala y la controla) o JUGADOR.
+   - Teléfono / tablet (pantalla táctil): entra directo como JUGADOR.
+   - El anfitrión no ocupa personaje ni cuenta entre los 10 jugadores.
    ============================================================ */
 (() => {
   'use strict';
 
   const EA = window.EA;
+  const B = EA.backend;
   const MAX_PLAYERS = 10;
   const CODE_LENGTH = 5;
-  const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // sin O/0/I/1 para evitar confusiones
-  const BOT_NAMES = ['Luna', 'Mateo', 'Sofía', 'Andrés', 'Valentina', 'Camilo', 'Isabela', 'Juan', 'Mariana', 'Santi'];
-  const AVATAR_COLORS = ['#e8433f', '#2a7de1', '#4cc94c', '#ff9a3c', '#a35bd1', '#2fd1b0', '#ff6fa5', '#7b4fd1'];
 
-  /* ---------------- Backend local (reemplazable por Supabase) ---------------- */
-  const LocalBackend = {
-    game: null,
-    listeners: new Set(),
-
-    snapshot() {
-      if (!this.game) return null;
-      return {
-        code: this.game.code,
-        status: this.game.status,                       // 'lobby' | 'started'
-        players: this.game.players.map((p) => ({ ...p })),
-      };
-    },
-
-    emit(type) {
-      const snap = this.snapshot();
-      this.listeners.forEach((cb) => cb(type, snap));
-    },
-
-    // cb(tipo, instantánea) con tipo = 'players' | 'started'
-    subscribe(cb) {
-      this.listeners.add(cb);
-      return () => this.listeners.delete(cb);
-    },
-
-    async createGame() {
-      if (this.game && this.game.status === 'lobby') return this.snapshot();
-      let code = '';
-      for (let i = 0; i < CODE_LENGTH; i++) code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
-      this.game = { code, status: 'lobby', players: [], nextId: 1 };
-      this.emit('players');
-      return this.snapshot();
-    },
-
-    async joinGame(code, name, opts = {}) {
-      const g = this.game;
-      const cleanCode = String(code || '').trim().toUpperCase();
-      const cleanName = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 12);
-      if (!g || cleanCode !== g.code) return { ok: false, error: 'Ese código no existe. Revisa las 5 letras.' };
-      if (g.status !== 'lobby') return { ok: false, error: 'La misión ya comenzó.' };
-      if (!cleanName) return { ok: false, error: 'Escribe tu nombre o apodo.' };
-      if (g.players.length >= MAX_PLAYERS) return { ok: false, error: 'La partida está llena (10/10).' };
-      if (g.players.some((p) => p.name.toLowerCase() === cleanName.toLowerCase())) {
-        return { ok: false, error: 'Ese nombre ya está en uso. Prueba otro.' };
-      }
-      const player = { id: 'p' + g.nextId++, name: cleanName, status: 'connecting', isBot: !!opts.bot };
-      g.players.push(player);
-      this.emit('players');
-      // Simula la latencia de conexión: "Conectando…" -> "Listo"
-      setTimeout(() => {
-        if (this.game !== g) return;
-        player.status = 'ready';
-        this.emit('players');
-      }, opts.bot ? 900 : 700);
-      return { ok: true, player: { ...player }, code: g.code };
-    },
-
-    async startGame() {
-      if (!this.game || this.game.status !== 'lobby') return;
-      this.game.status = 'started';
-      this.emit('started');
-    },
-  };
-
-  const backend = EA.backend = LocalBackend;
-
-  /* ---------------- Interfaz ---------------- */
   const $ = (id) => document.getElementById(id);
-  let localPlayer = null;     // jugador que se unió desde la vista "Jugador" de este navegador
-  let botTimers = [];
-  let subscribed = false;
-
-  const colorFor = (name) => {
-    let h = 0;
-    for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    return AVATAR_COLORS[h % AVATAR_COLORS.length];
+  const h = (tag, cls, text) => {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
   };
+  const thumb = (charId) => (charId ? EA.charCanvas(charId) : h('span', 'char-cv unknown', '?'));
+  const isTouch = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
 
-  function fillAvatar(el, name) {
-    el.textContent = name.charAt(0).toUpperCase();
-    el.style.background = colorFor(name);
-  }
+  const ERRORS = {
+    room_not_found: 'Ese código no existe. Revisa las 5 letras.',
+    room_full: 'La partida está llena (10/10).',
+    game_started: 'La partida ya comenzó.',
+    name_taken: 'Ese nombre ya está en uso. Prueba otro.',
+    bad_name: 'Escribe tu nombre o apodo (máximo 12 letras).',
+    host_cannot_play: 'Este dispositivo es el anfitrión de esa partida. Entra desde otro dispositivo para jugar.',
+    character_taken: 'Ese personaje acaba de ser ocupado. Elige otro.',
+    not_in_waiting_room: 'La partida ya no está disponible.',
+    not_configured: 'El juego todavía no está conectado al servidor.',
+  };
+  const errText = (e) => ERRORS[e && e.code] || ERRORS[e && e.message] || 'No se pudo conectar. Revisa tu internet e inténtalo de nuevo.';
 
-  function setMode(mode) {
-    const host = mode === 'host';
-    $('view-host').hidden = !host;
-    $('view-player').hidden = host;
-    $('tab-host').classList.toggle('on', host);
-    $('tab-player').classList.toggle('on', !host);
-    $('tab-host').setAttribute('aria-selected', host);
-    $('tab-player').setAttribute('aria-selected', !host);
-    if (host) backend.createGame();
-    else if (!localPlayer) $('join-code').focus({ preventScroll: true });
-  }
+  let role = null;          // 'host' | 'player' — cada pestaña/dispositivo es una sola cosa
+  let picked = null;        // personaje tocado, aún sin confirmar
+  let started = false;
+  let busy = false;
 
-  function renderLobby(snap) {
-    if (!snap) return;
-    // código de partida: una casilla por carácter
-    const codeBox = $('game-code');
-    if (codeBox.dataset.code !== snap.code) {
-      codeBox.dataset.code = snap.code;
-      codeBox.innerHTML = [...snap.code].map((c) => `<span class="ch">${c}</span>`).join('');
-      codeBox.setAttribute('aria-label', 'Código ' + snap.code.split('').join(' '));
-    }
-    $('player-count').textContent = `${snap.players.length}/${MAX_PLAYERS} jugadores`;
-
-    // lista con las 10 plazas (ocupadas y libres)
-    const roster = $('roster');
-    roster.innerHTML = '';
-    for (let i = 0; i < MAX_PLAYERS; i++) {
-      const p = snap.players[i];
-      const li = document.createElement('li');
-      if (!p) {
-        li.className = 'slot empty';
-        li.textContent = 'libre';
-      } else {
-        li.className = 'slot';
-        const av = document.createElement('div');
-        av.className = 'avatar';
-        fillAvatar(av, p.name);
-        const nm = document.createElement('span');
-        nm.className = 'pname';
-        nm.textContent = p.name + (localPlayer && localPlayer.id === p.id ? ' (TÚ)' : '');
-        const st = document.createElement('span');
-        st.className = 'chip ' + (p.status === 'ready' ? 'ready' : 'wait');
-        st.textContent = p.status === 'ready' ? '✔ Listo' : 'Conectando…';
-        li.append(av, nm, st);
-      }
-      roster.appendChild(li);
-    }
-    EA.fixAccents(roster);
-  }
-
-  function onBackendEvent(type, snap) {
-    if (type === 'players') renderLobby(snap);
-    if (type === 'started') {
-      botTimers.forEach(clearTimeout);
-      botTimers = [];
-      EA.startMission({ playerName: localPlayer ? localPlayer.name : null });
-    }
-  }
-
-  // Jugadores simulados que "entran" poco a poco para poder probar el lobby
-  async function addBot() {
-    const snap = backend.snapshot();
-    if (!snap || snap.status !== 'lobby' || snap.players.length >= MAX_PLAYERS) return;
-    const used = new Set(snap.players.map((p) => p.name.toLowerCase()));
-    let name = BOT_NAMES.find((n) => !used.has(n.toLowerCase()));
-    if (!name) name = 'Jugador' + (snap.players.length + 1);
-    await backend.joinGame(snap.code, name, { bot: true });
-  }
-
-  function scheduleBots() {
-    botTimers.forEach(clearTimeout);
-    botTimers = [1200, 2800, 4400].map((ms) => setTimeout(addBot, ms));
-  }
-
-  /* ---------------- Vista jugador ---------------- */
-  function showError(msg) {
-    const box = $('join-error');
-    box.textContent = msg;
+  function showError(id, msg) {
+    const box = $(id);
+    box.textContent = msg || '';
     box.hidden = !msg;
     EA.fixAccents(box);
   }
 
-  async function onJoin(e) {
-    e.preventDefault();
-    showError('');
-    const btn = $('join-btn');
-    btn.disabled = true;
-    const res = await backend.joinGame($('join-code').value, $('join-name').value);
-    btn.disabled = false;
-    if (!res.ok) { showError(res.error); return; }
-    localPlayer = res.player;
-    $('join-form').hidden = true;
-    $('join-done').hidden = false;
-    fillAvatar($('join-avatar'), localPlayer.name);
-    $('join-name-out').textContent = localPlayer.name;
-    renderLobby(backend.snapshot());
+  /* ================= MODO ANFITRIÓN ================= */
+  const joinLink = () => location.href.split('?')[0].split('#')[0].replace(/index\.html$/, '');
+
+  function renderHost(g) {
+    const mine = !!g;
+    $('host-new').hidden = mine;
+    $('host-game').hidden = !mine;
+    if (!mine) return;
+
+    const codeBox = $('game-code');
+    if (codeBox.dataset.code !== g.code) {
+      codeBox.dataset.code = g.code;
+      codeBox.innerHTML = [...g.code].map((c) => `<span class="ch">${c}</span>`).join('');
+      codeBox.setAttribute('aria-label', 'Código ' + g.code.split('').join(' '));
+      $('join-url').textContent = joinLink();
+    }
+    $('player-count').textContent = `${g.players.length}/${MAX_PLAYERS}`;
+
+    // lista de las 10 plazas
+    const roster = $('roster');
+    roster.innerHTML = '';
+    for (let i = 0; i < MAX_PLAYERS; i++) {
+      const p = g.players[i];
+      const li = h('li', p ? 'slot' : 'slot empty');
+      if (!p) li.textContent = 'libre';
+      else {
+        const av = h('div', 'avatar');
+        av.append(thumb(p.characterId));
+        const nm = h('span', 'pname', `J${i + 1} · ${p.name}`);
+        const ch = p.characterId ? EA.charById(p.characterId) : null;
+        const st = h('span', 'chip ' + (ch ? 'ready' : 'wait'), ch ? `✔ ${ch.name}` : 'Eligiendo…');
+        li.append(av, nm, st);
+      }
+      roster.appendChild(li);
+    }
+
+    // estado de los 10 personajes
+    const owners = new Map(g.players.filter((p) => p.characterId).map((p) => [p.characterId, p.name]));
+    const strip = $('host-chars');
+    strip.innerHTML = '';
+    EA.CHARACTERS.forEach((c) => {
+      const owner = owners.get(c.id);
+      const cell = h('div', 'mini' + (owner ? ' taken' : ''));
+      cell.append(EA.charCanvas(c.id), h('span', 'mini-name', c.name), h('span', 'mini-own', owner ? '🔒 ' + owner : 'libre'));
+      strip.append(cell);
+    });
+    $('char-count').textContent = `${owners.size}/${EA.CHARACTERS.length} ocupados`;
+
+    const ready = g.players.filter((p) => p.characterId).length;
+    const choosing = g.players.length - ready;
+    let status = 'Esperando jugadores…';
+    if (g.players.length) {
+      status = choosing
+        ? `${ready} listo${ready === 1 ? '' : 's'} · ${choosing} eligiendo personaje. Si inicias ahora, recibirán uno libre.`
+        : `Todos listos (${ready}). Tú decides cuándo empezar.`;
+    }
+    $('host-status').textContent = status;
+    $('start-game').disabled = !g.players.length || g.status !== 'waiting' || busy;
+    EA.fixAccents($('host-game'));
   }
 
-  /* ---------------- Entrada al lobby ---------------- */
-  EA.goLobby = (mode = 'host') => {
-    EA.showScreen('lobby-screen');
-    if (!subscribed) {
-      backend.subscribe(onBackendEvent);
-      subscribed = true;
+  async function createGame() {
+    if (busy) return;
+    busy = true;
+    showError('host-error', '');
+    $('create-game').disabled = true;
+    $('create-game').textContent = 'CREANDO…';
+    try {
+      await B.init('host');
+      renderHost(await B.createGame());
+    } catch (e) {
+      showError('host-error', errText(e));
     }
-    setMode(mode);
-    renderLobby(backend.snapshot());
-    if (mode === 'host' && botTimers.length === 0) scheduleBots();
+    busy = false;
+    $('create-game').disabled = false;
+    $('create-game').textContent = 'CREAR PARTIDA';
+  }
+
+  async function startGame() {
+    if (role !== 'host' || busy) return;
+    busy = true;
+    $('start-game').disabled = true;
+    showError('host-error', '');
+    try {
+      await B.startGame();                       // el servidor fija start_at; todos lo reciben por Realtime
+    } catch (e) {
+      showError('host-error', errText(e));
+    }
+    busy = false;
+    renderHost(B.snapshot());
+  }
+
+  /* ================= MODO JUGADOR ================= */
+  function resetPlayer(msg) {
+    picked = null;
+    $('join-form').hidden = false;
+    $('wait-room').hidden = true;
+    $('player-back').hidden = isTouch();
+    showError('join-error', msg);
+  }
+
+  function setWalker(el, charId) {
+    el.style.backgroundImage = `url(${EA.charStrip(charId)})`;
+  }
+
+  function renderPlayer(g) {
+    const mine = g && B.me();
+    if (!mine) return;
+    $('join-form').hidden = true;
+    $('wait-room').hidden = false;
+    $('player-back').hidden = true;
+
+    $('wait-code').textContent = g.code;
+    $('wait-count').textContent = `${g.players.length}/${MAX_PLAYERS}`;
+
+    // participantes
+    const list = $('wait-list');
+    list.innerHTML = '';
+    g.players.forEach((p, i) => {
+      const li = h('li', 'wait-p' + (p.id === mine.id ? ' me' : ''));
+      li.append(thumb(p.characterId), h('span', '', `J${i + 1} ${p.name}${p.id === mine.id ? ' (TÚ)' : ''}`));
+      list.append(li);
+    });
+
+    const taken = new Map(g.players.filter((p) => p.characterId && p.id !== mine.id).map((p) => [p.characterId, p.name]));
+    if (picked && taken.has(picked)) {
+      picked = null;
+      showError('choose-error', ERRORS.character_taken);
+    }
+
+    const chosen = mine.characterId;
+    $('choose-box').hidden = !!chosen;
+    $('ready-box').hidden = !chosen;
+
+    if (chosen) {
+      const c = EA.charById(chosen);
+      setWalker($('ready-sprite'), chosen);
+      $('ready-name').textContent = `${c.icon} ${c.name}`;
+    } else {
+      const grid = $('char-grid');
+      grid.innerHTML = '';
+      EA.CHARACTERS.forEach((c) => {
+        const owner = taken.get(c.id);
+        const b = h('button', 'char-card' + (owner ? ' taken' : '') + (picked === c.id ? ' sel' : ''));
+        b.type = 'button';
+        b.dataset.id = c.id;
+        b.disabled = !!owner;
+        b.title = owner ? `Ocupado por ${owner}` : c.name;
+        b.append(EA.charCanvas(c.id), h('span', 'cn', c.name), h('span', 'ct', `#${c.num} ${c.icon}`));
+        if (owner) b.append(h('span', 'lock', '🔒\nOCUPADO'));
+        b.addEventListener('click', () => pickCharacter(c.id));
+        grid.append(b);
+      });
+      const pv = $('char-preview');
+      pv.hidden = !picked;
+      if (picked) {
+        const c = EA.charById(picked);
+        setWalker($('preview-sprite'), picked);
+        $('preview-name').textContent = `${c.icon} ${c.name} · ${c.kind}`;
+      }
+    }
+    EA.fixAccents($('wait-room'));
+  }
+
+  function pickCharacter(id) {
+    showError('choose-error', '');
+    picked = id;
+    renderPlayer(B.snapshot());
+    const pv = $('char-preview');
+    if (!pv.hidden && pv.scrollIntoView) pv.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  async function confirmCharacter() {
+    if (!picked || busy) return;
+    busy = true;
+    const id = picked;
+    try {
+      await B.chooseCharacter(id);
+      picked = null;
+      $('player-screen').scrollTop = 0;
+    } catch (e) {
+      picked = null;
+      showError('choose-error', errText(e));
+    }
+    busy = false;
+    renderPlayer(B.snapshot());
+  }
+
+  async function changeCharacter() {
+    if (busy) return;
+    busy = true;
+    try { await B.chooseCharacter(null); } catch (e) { showError('choose-error', errText(e)); }
+    busy = false;
+    renderPlayer(B.snapshot());
+  }
+
+  async function onJoin(e) {
+    e.preventDefault();
+    if (busy) return;
+    showError('join-error', '');
+    const code = $('join-code').value.trim();
+    const name = $('join-name').value.trim();
+    if (code.length < CODE_LENGTH) { showError('join-error', 'Escribe el código de 5 letras de la partida.'); return; }
+    if (!name) { showError('join-error', 'Escribe tu nombre o apodo.'); return; }
+    busy = true;
+    $('join-btn').disabled = true;
+    $('join-btn').textContent = 'CONECTANDO…';
+    try {
+      await B.init('player');
+      await B.joinGame(code, name);
+      picked = null;
+      showError('choose-error', '');
+      renderPlayer(B.snapshot());
+      $('player-screen').scrollTop = 0;
+    } catch (err) {
+      showError('join-error', errText(err));
+    }
+    busy = false;
+    $('join-btn').disabled = false;
+    $('join-btn').textContent = 'UNIRME';
+  }
+
+  /* ================= cambios de la partida (Realtime) ================= */
+  async function begin(g) {
+    if (started) return;
+    started = true;
+    await B.clockReady;                              // el reloj del servidor ya está medido
+    EA.startMission({ role, game: B.snapshot() || g, playerId: role === 'player' && B.me() ? B.me().id : null });
+  }
+
+  B.subscribe((g) => {
+    if (!g || !role) return;
+    if (role === 'host') {
+      if (!started) renderHost(g);
+      if (g.status === 'playing' && g.startAt) begin(g);
+    } else if (role === 'player') {
+      if (g.status === 'playing' && g.startAt && B.me()) { begin(g); return; }
+      if (!started) renderPlayer(g);
+    }
+  });
+
+  /* ================= navegación ================= */
+  EA.goHost = () => {
+    if (isTouch()) return;                          // el anfitrión solo funciona desde computador
+    role = 'host';
+    EA.showScreen('host-screen');
+    renderHost(B.snapshot());
+    if (!B.configured) showError('host-error', ERRORS.not_configured);
   };
 
-  $('tab-host').addEventListener('click', () => setMode('host'));
-  $('tab-player').addEventListener('click', () => setMode('player'));
-  $('start-mission').addEventListener('click', () => backend.startGame());
-  $('add-test').addEventListener('click', addBot);
-  $('sim-start').addEventListener('click', () => backend.startGame());
+  EA.goPlayer = () => {
+    role = 'player';
+    EA.showScreen('player-screen');
+    $('player-back').hidden = isTouch() || !!B.me();
+    if (!B.me()) $('join-code').focus({ preventScroll: true });
+    if (!B.configured) showError('join-error', ERRORS.not_configured);
+  };
+
+  $('go-host').addEventListener('click', EA.goHost);
+  $('go-player').addEventListener('click', EA.goPlayer);
+  document.querySelectorAll('.back-intro').forEach((b) => b.addEventListener('click', () => {
+    if (role === 'player' && B.me()) return;        // ya está dentro de una sala de espera
+    role = null;
+    EA.showScreen('intro');
+  }));
+  $('create-game').addEventListener('click', createGame);
+  $('start-game').addEventListener('click', startGame);
+  $('copy-link').addEventListener('click', () => {
+    const g = B.snapshot();
+    if (!g) return;
+    const link = `${joinLink()}?jugador&codigo=${g.code}`;
+    const done = () => EA.showToast('📋 ENLACE COPIADO');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => EA.showToast(link, 4000));
+    else EA.showToast(link, 4000);
+  });
   $('join-form').addEventListener('submit', onJoin);
+  $('char-continue').addEventListener('click', confirmCharacter);
+  $('char-change').addEventListener('click', changeCharacter);
   $('join-code').addEventListener('input', (e) => {
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   });
 
-  // Enlace directo para el celular: index.html?jugador (opcional &codigo=XXXXX). Salta la introducción.
+  // Indicador de conexión
+  B.subscribeStatus((online) => { $('net-banner').hidden = online; });
+
+  /* ================= arranque: reconexión, teléfono = jugador ================= */
   const params = new URLSearchParams(location.search);
-  if (params.has('jugador')) {
-    document.body.classList.add('solo-jugador');
-    EA.goLobby('player');
-    if (params.get('codigo')) $('join-code').value = params.get('codigo').toUpperCase().slice(0, CODE_LENGTH);
+
+  async function boot() {
+    // 1) ¿había una partida en curso en este dispositivo? (recarga o pérdida de conexión)
+    if (B.configured && !params.has('nuevo')) {
+      const order = isTouch() ? ['player'] : ['host', 'player'];
+      for (const r of order) {
+        if (!B.loadSession(r)) continue;
+        EA.showToast('Reconectando a la partida…', 6000);
+        const g = await B.resume(r);
+        if (!g) continue;
+        role = r;
+        if (r === 'host') {
+          EA.showScreen('host-screen');
+          renderHost(g);
+          if (g.status === 'playing' && g.startAt) begin(g);
+        } else {
+          EA.showScreen('player-screen');
+          if (g.status === 'playing' && g.startAt && B.me()) begin(g);
+          else renderPlayer(g);
+        }
+        return;
+      }
+    }
+    // 2) Teléfono / tablet: directo a la interfaz de jugador, sin elegir modo
+    if (isTouch() || params.has('jugador')) {
+      document.body.classList.add('solo-jugador');
+      EA.goPlayer();
+      if (params.get('codigo')) $('join-code').value = params.get('codigo').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LENGTH);
+    }
   }
+  // cuando ya están cargados todos los scripts (partida.js, mapa.js…)
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();

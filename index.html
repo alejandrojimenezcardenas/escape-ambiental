@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Escape Ambiental · El Último Protocolo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,7 +15,7 @@
   <canvas id="sun-glow" class="glow" width="25" height="25" aria-hidden="true"></canvas>
   <div id="clouds" aria-hidden="true"></div>
 
-  <!-- PANTALLA 1: introducción -->
+  <!-- PANTALLA INICIAL: introducción y elección de modo -->
   <main id="intro" class="screen">
     <canvas id="planet" width="24" height="24" aria-label="Planeta Tierra en pixel art"></canvas>
 
@@ -31,25 +31,110 @@
 
     <div class="alert" role="alert">🚨 PROTOCOLO AMBIENTAL ACTIVADO</div>
 
-    <button id="start" type="button" class="btn">[ COMENZAR ]</button>
+    <div class="role-pick">
+      <button id="go-host" type="button" class="btn role-btn host">
+        <span>📺 ANFITRIÓN</span><small>Crea y controla la partida</small>
+      </button>
+      <button id="go-player" type="button" class="btn role-btn">
+        <span>📱 JUGADOR</span><small>Únete con un código</small>
+      </button>
+    </div>
   </main>
 
-  <!-- PANTALLA 2: sala principal (solo escenario; el suelo y los muebles se dibujan en game.js).
+  <!-- MODO ANFITRIÓN: crea la partida, ve a los jugadores y decide cuándo empezar -->
+  <main id="host-screen" class="screen flow" hidden>
+    <div class="stack">
+      <section class="card lobby-card">
+        <p class="role-tag host">📺 ANFITRIÓN</p>
+        <h2 class="lobby-title">ESCAPE AMBIENTAL</h2>
+
+        <div id="host-new">
+          <p class="muted">Crea la partida y comparte el código con los jugadores. Tú controlas la partida: no ocupas personaje ni sumas puntos.</p>
+          <button id="create-game" type="button" class="btn">CREAR PARTIDA</button>
+        </div>
+
+        <div id="host-game" hidden>
+          <p class="label">CÓDIGO DE PARTIDA</p>
+          <div id="game-code" class="code" aria-live="polite"></div>
+          <p class="muted join-help">Los jugadores abren <b id="join-url" class="join-url"></b> desde su celular o computador y escriben este código.</p>
+          <button id="copy-link" type="button" class="btn-small">📋 COPIAR ENLACE PARA JUGADORES</button>
+          <div class="roster-head"><span>JUGADORES</span><span id="player-count">0/10</span></div>
+          <ul id="roster" class="roster"></ul>
+          <div class="roster-head"><span>PERSONAJES</span><span id="char-count">0/10 ocupados</span></div>
+          <div id="host-chars" class="char-strip"></div>
+          <p id="host-status" class="host-status"></p>
+          <button id="start-game" type="button" class="btn">▶ INICIAR PARTIDA</button>
+        </div>
+        <p id="host-error" class="form-error" role="alert" hidden></p>
+      </section>
+      <button type="button" class="btn-small back-intro">← VOLVER</button>
+    </div>
+  </main>
+
+  <!-- MODO JUGADOR: código + nombre, sala de espera y elección de personaje -->
+  <main id="player-screen" class="screen flow" hidden>
+    <div class="stack">
+      <form id="join-form" class="card player-card" autocomplete="off" novalidate>
+        <p class="role-tag">📱 JUGADOR</p>
+        <h2 class="lobby-title">ESCAPE AMBIENTAL</h2>
+        <label class="label" for="join-code">CÓDIGO DE PARTIDA</label>
+        <input id="join-code" class="input code-input" type="text" maxlength="5" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="A7K9P">
+        <label class="label" for="join-name">TU NOMBRE / APODO</label>
+        <input id="join-name" class="input" type="text" maxlength="12" autocomplete="off" placeholder="Ej: Luna">
+        <p id="join-error" class="form-error" role="alert" hidden></p>
+        <button id="join-btn" type="submit" class="btn">UNIRME</button>
+      </form>
+
+      <section id="wait-room" class="card wait-card" hidden>
+        <h2 class="lobby-title">🎮 SALA DE ESPERA</h2>
+        <div class="wait-meta">
+          <span>CÓDIGO <b id="wait-code"></b></span>
+          <span>JUGADORES <b id="wait-count"></b></span>
+        </div>
+        <ul id="wait-list" class="wait-list"></ul>
+        <p class="waiting host-wait">🟡 ESPERANDO AL ANFITRIÓN<span class="dots-anim"></span></p>
+
+        <div id="choose-box">
+          <p class="label choose-title">ELIGE TU PERSONAJE</p>
+          <div id="char-grid" class="char-grid"></div>
+          <p id="choose-error" class="form-error" role="alert" hidden></p>
+          <div id="char-preview" class="char-preview" hidden>
+            <p class="sel-tag">✨ SELECCIONADO</p>
+            <p class="label">TU PERSONAJE</p>
+            <div id="preview-sprite" class="walker"></div>
+            <p id="preview-name" class="preview-name"></p>
+            <button id="char-continue" type="button" class="btn">CONTINUAR</button>
+          </div>
+        </div>
+
+        <div id="ready-box" class="ready-box" hidden>
+          <p class="label">TU PERSONAJE</p>
+          <div id="ready-sprite" class="walker"></div>
+          <p id="ready-name" class="preview-name"></p>
+          <p class="muted">¡Listo! La partida empieza cuando el anfitrión pulse INICIAR.</p>
+          <button id="char-change" type="button" class="btn-small">CAMBIAR PERSONAJE</button>
+        </div>
+      </section>
+      <button id="player-back" type="button" class="btn-small back-intro">← VOLVER</button>
+    </div>
+  </main>
+
+  <!-- MAPA: sala principal (suelo y muebles en game.js; personajes en mapa.js).
        Posiciones en píxeles lógicos del lienzo: 256 x 200. -->
   <main id="room-screen" class="screen" hidden>
     <div id="room" aria-label="Sala principal con cuatro estaciones y una salida bloqueada">
       <canvas id="room-canvas" width="256" height="200"></canvas>
 
-      <div class="station at" data-station="archivo" role="button" tabindex="0" aria-label="Archivo Ambiental" style="--lx:16;--ly:32;--lw:72;--lh:48;--accent:#c9873a">
+      <div class="station at" data-station="archivo" aria-label="Archivo Ambiental" style="--lx:16;--ly:32;--lw:72;--lh:48;--accent:#c9873a">
         <div class="plate"><span class="ico">📜</span><span>ARCHIVO<br>AMBIENTAL</span></div>
       </div>
-      <div class="station at" data-station="laboratorio" role="button" tabindex="0" aria-label="Laboratorio EPI" style="--lx:168;--ly:32;--lw:72;--lh:48;--accent:#2a7de1">
+      <div class="station at" data-station="laboratorio" aria-label="Laboratorio EPI" style="--lx:168;--ly:32;--lw:72;--lh:48;--accent:#2a7de1">
         <div class="plate"><span class="ico">📊</span><span>LABORATORIO<br>EPI</span></div>
       </div>
-      <div class="station at" data-station="emergencias" role="button" tabindex="0" aria-label="Centro de Emergencias" style="--lx:16;--ly:104;--lw:72;--lh:48;--accent:#e8433f">
+      <div class="station at" data-station="emergencias" aria-label="Centro de Emergencias" style="--lx:16;--ly:104;--lw:72;--lh:48;--accent:#e8433f">
         <div class="plate"><span class="ico">🚨</span><span>CENTRO DE<br>EMERGENCIAS</span></div>
       </div>
-      <div class="station at" data-station="nucleo" role="button" tabindex="0" aria-label="Núcleo Ambiental" style="--lx:168;--ly:104;--lw:72;--lh:48;--accent:#7b4fd1">
+      <div class="station at" data-station="nucleo" aria-label="Núcleo Ambiental" style="--lx:168;--ly:104;--lw:72;--lh:48;--accent:#7b4fd1">
         <div class="plate"><span class="ico">🔐</span><span>N<span class="acc">U</span>CLEO<br>AMBIENTAL</span></div>
       </div>
 
@@ -59,48 +144,11 @@
       </div>
       <span class="light at" style="--lx:93;--ly:186;--lw:4;--lh:3"></span>
       <span class="light at" style="--lx:159;--ly:186;--lw:4;--lh:3"></span>
+
+      <canvas id="actors" width="256" height="200" aria-hidden="true"></canvas>
+      <div id="labels" aria-hidden="true"></div>
     </div>
-    <p class="hint">Toca una estación para entrar</p>
-  </main>
-
-  <!-- LOBBY: vista anfitrión (pantalla grande) y vista jugador (celular) -->
-  <main id="lobby-screen" class="screen flow" hidden>
-    <div class="stack">
-      <div class="tabs" role="tablist">
-        <button id="tab-host" class="tab on" type="button" role="tab">📺 ANFITRIÓN</button>
-        <button id="tab-player" class="tab" type="button" role="tab">📱 JUGADOR</button>
-      </div>
-
-      <section id="view-host" class="card lobby-card">
-        <h2 class="lobby-title">ESCAPE AMBIENTAL</h2>
-        <p class="label">CÓDIGO DE PARTIDA</p>
-        <div id="game-code" class="code" aria-live="polite"></div>
-        <p class="muted">Los jugadores se unen con este código desde el celular.</p>
-        <div class="roster-head"><span>JUGADORES</span><span id="player-count">0/10 jugadores</span></div>
-        <ul id="roster" class="roster"></ul>
-        <button id="start-mission" type="button" class="btn">INICIAR MISIÓN</button>
-        <button id="add-test" type="button" class="btn-small">+ JUGADOR DE PRUEBA</button>
-      </section>
-
-      <section id="view-player" class="card player-card" hidden>
-        <form id="join-form" autocomplete="off" novalidate>
-          <h2 class="lobby-title">¡ÚNETE A LA MISIÓN!</h2>
-          <label class="label" for="join-code">CÓDIGO DE PARTIDA</label>
-          <input id="join-code" class="input code-input" type="text" maxlength="5" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="A7K9P">
-          <label class="label" for="join-name">TU NOMBRE O APODO</label>
-          <input id="join-name" class="input" type="text" maxlength="12" autocomplete="off" placeholder="Ej: Luna">
-          <p id="join-error" class="form-error" role="alert" hidden></p>
-          <button id="join-btn" type="submit" class="btn">UNIRME</button>
-        </form>
-        <div id="join-done" hidden>
-          <div id="join-avatar" class="avatar big"></div>
-          <h2 class="lobby-title ok">¡ESTÁS DENTRO!</h2>
-          <p id="join-name-out" class="player-name"></p>
-          <p class="waiting">Esperando que comience la misión<span class="dots-anim"></span></p>
-          <button id="sim-start" type="button" class="btn-small">(prueba) SIMULAR INICIO DEL ANFITRIÓN</button>
-        </div>
-      </section>
-    </div>
+    <p class="hint" id="map-hint">Muévete con W A S D o las flechas · Acércate a una estación</p>
   </main>
 
   <!-- ESTACIÓN (genérica: el contenido lo pone cada estación) -->
@@ -132,19 +180,56 @@
     </div>
   </main>
 
-  <!-- HUD de la partida: tiempo, puntos y estaciones -->
+  <!-- HUD de la partida -->
   <header id="hud" aria-label="Estado de la partida">
-    <div class="stat"><span class="k">TIEMPO</span><span id="hud-time" class="v">00:00</span></div>
-    <div class="stat"><span class="k">PUNTOS</span><span id="hud-points" class="v">0</span></div>
-    <div class="stat"><span class="k">ESTACIONES</span><span id="hud-stations" class="v">0/4</span></div>
+    <div class="stat"><span id="hud-k1" class="k">TIEMPO</span><span id="hud-time" class="v">15:00</span></div>
+    <div class="stat"><span id="hud-k2" class="k">PUNTOS</span><span id="hud-points" class="v">0</span></div>
+    <div class="stat"><span id="hud-k3" class="k">ESTACIONES</span><span id="hud-stations" class="v">0/4</span></div>
   </header>
 
-  <div id="toast" role="status" aria-live="polite"></div>
-  <div id="wipe" aria-hidden="true"><div id="wipe-grid"></div><div id="wipe-text"></div></div>
+  <!-- Controles del mapa: aviso para entrar y joystick (solo en pantallas táctiles) -->
+  <button id="act" type="button" hidden></button>
+  <div id="joy" aria-hidden="true"><div id="joy-knob"></div></div>
 
+  <!-- Cuenta atrás 3-2-1, avisos de fin y teléfono en vertical -->
+  <div id="count" hidden><span id="count-n"></span></div>
+  <div id="overlay" hidden>
+    <div class="card overlay-card">
+      <h2 id="ov-title" class="done-title"></h2>
+      <p id="ov-text" class="ov-text"></p>
+      <button id="ov-home" type="button" class="btn-small">↺ VOLVER AL INICIO</button>
+    </div>
+  </div>
+  <div id="rotate" role="alert">
+    <div class="rot-line"></div>
+    <p class="rot-title">📱 GIRA TU TELÉFONO</p>
+    <p class="rot-text">Para jugar a</p>
+    <p class="rot-game">ESCAPE AMBIENTAL</p>
+    <p class="rot-text">gira tu dispositivo<br>horizontalmente.</p>
+    <div class="rot-ico">↻</div>
+    <div class="rot-line"></div>
+  </div>
+
+  <!-- Podio final -->
+  <section id="podium" hidden aria-live="polite">
+    <div class="card podium-card">
+      <h2 class="podium-title">🏁 PARTIDA TERMINADA</h2>
+      <div id="podium-body"></div>
+      <button id="podium-home" type="button" class="btn-small">↺ VOLVER AL INICIO</button>
+    </div>
+  </section>
+
+  <div id="net-banner" role="alert" hidden>⚠ SIN CONEXIÓN · reconectando…</div>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
   <script src="game.js"></script>
+  <script src="characters.js"></script>
+  <script src="net.js"></script>
   <script src="lobby.js"></script>
   <script src="partida.js"></script>
+  <script src="mapa.js"></script>
   <script src="archivo.js"></script>
   <script src="emergencias.js"></script>
   <script src="laboratorio.js"></script>
