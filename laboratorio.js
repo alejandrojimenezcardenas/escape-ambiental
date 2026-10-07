@@ -4,12 +4,8 @@
    Los retos evalúan COMPRENSIÓN: qué se analiza con el EPI, qué información
    tiene sentido, qué hace un analista y qué conclusiones se pueden sostener.
 
-   Contenido: el material solo menciona seis países (Estados Unidos, Colombia,
-   Reino Unido, Alemania, Suiza, Japón) y el tema "análisis del desempeño
-   ambiental de un país EPI". NO hay posiciones, puntajes, porcentajes,
-   indicadores ni comparaciones reales. El único dato numérico que aparece
-   (reto 4) se presenta explícitamente como DATO SOSPECHOSO sin verificar,
-   y la respuesta correcta es que no se puede validar.
+   Contenido: los retos 2 y 3 usan los puntajes de las presentaciones del
+   curso (Colombia EPI 2024 y Japón EPI 2026). No se usan otras cifras.
 
    Las banderas son solo decorativas (pixel art). Las mecánicas se registran
    en EA.renderers; el motor (partida.js) no cambia.
@@ -171,9 +167,9 @@
     const card = h('div', 'suspect');
     card.append(h('div', 'suspect-bar'));
     const head = h('div', 'suspect-head');
-    head.append(h('span', '', '⚠️ INFORME RECIBIDO'), h('span', 'stamp', 'SIN VERIFICAR'));
+    head.append(h('span', '', '⚠️ INFORME RECIBIDO'), h('span', 'stamp', ch.stamp || 'SIN VERIFICAR'));
     card.append(head);
-    card.append(h('p', 'suspect-note', 'Dato sospechoso: el analista debe verificarlo.'));
+    card.append(h('p', 'suspect-note', ch.note || 'Dato sospechoso: el analista debe verificarlo.'));
     card.append(h('blockquote', 'suspect-quote', '"' + ch.claim + '"'));
     card.append(h('p', 'suspect-q', ch.prompt));
     box.append(card);
@@ -230,82 +226,82 @@
     doneTitle: '📊 ¡LABORATORIO EPI COMPLETADO!',
     drawBanner,
     challenges: [
-      // 1 · ¿Qué se analiza?
+      // 1 · ¿Qué analiza el EPI?
       {
         type: 'report',
         title: '🔬 INFORME DEL LABORATORIO',
         country: 'col',
-        text: 'El laboratorio está realizando un análisis del desempeño ambiental del país.',
-        prompt: '¿Qué está analizando principalmente el laboratorio?',
+        text: 'El laboratorio está trabajando con el Índice de Desempeño Ambiental (EPI).',
+        prompt: '¿Qué analiza principalmente el Índice de Desempeño Ambiental (EPI)?',
         options: [
-          { id: 'amb', text: 'El desempeño ambiental del país.' },
-          { id: 'hab', text: 'La cantidad de habitantes del país.' },
-          { id: 'ter', text: 'El tamaño territorial del país.' },
-          { id: 'ciu', text: 'La cantidad de ciudades del país.' },
+          { id: 'amb', text: 'El desempeño ambiental de los países.' },
+          { id: 'eco', text: 'Únicamente la economía de los países.' },
+          { id: 'com', text: 'Solamente el comercio internacional.' },
+          { id: 'pob', text: 'La cantidad de población de cada país.' },
         ],
         answer: 'amb',
-        explain: 'El laboratorio analiza el desempeño ambiental del país.',
+        explain: 'El EPI analiza el desempeño ambiental de los países.',
       },
-      // 2 · ¿Qué información tiene sentido en el EPI?
+      // 2 · Dato rápido: Colombia
       {
         type: 'panel',
-        title: '📊 LEE EL INFORME',
-        country: 'jpn',
-        text: 'El laboratorio está realizando un análisis ambiental del país.',
-        prompt: 'Si estás trabajando con el EPI, ¿qué tipo de información tiene sentido analizar?',
+        title: '📊 DATO RÁPIDO',
+        country: 'col',
+        text: 'Presentación de Colombia: EPI 2024.',
+        prompt: 'Según la presentación de Colombia, ¿qué puntuación obtuvo Colombia en el EPI 2024?',
         options: [
-          { id: 'amb', icon: '🌿', text: 'Información relacionada con el desempeño ambiental.' },
-          { id: 'fut', icon: '⚽', text: 'El equipo de fútbol favorito del país.' },
-          { id: 'cine', icon: '🎬', text: 'El número de películas producidas.' },
-          { id: 'fer', icon: '📅', text: 'La cantidad de feriados nacionales.' },
+          { id: 'p497', icon: '📈', text: '49,7' },
+          { id: 'p6315', icon: '📈', text: '63,15' },
+          { id: 'p6993', icon: '📈', text: '69,93' },
+          { id: 'p5854', icon: '📈', text: '58,54' },
         ],
-        answer: 'amb',
-        explain: 'Con el EPI se analiza información relacionada con el desempeño ambiental.',
+        answer: 'p497',
+        explain: 'Según la presentación de Colombia, obtuvo 49,7 en el EPI 2024.',
       },
-      // 3 · Decisión del analista
+      // 3 · Dato rápido: Japón
       {
         type: 'console',
-        title: '🧠 ANALISTA AMBIENTAL',
-        situation: 'El laboratorio recibe información sobre un país y debe realizar un análisis de su desempeño ambiental.',
-        prompt: '¿Cuál sería la acción más adecuada para el analista?',
+        title: '🧠 DATO RÁPIDO',
+        situation: 'Revisas la presentación de Japón sobre el EPI 2026.',
+        prompt: 'Según la presentación de Japón, ¿qué puntuación obtuvo Japón en el EPI 2026?',
         options: [
-          { id: 'ana', text: 'Analizar la información ambiental disponible.' },
-          { id: 'ter', text: 'Elegir automáticamente al país con mayor territorio.' },
-          { id: 'hab', text: 'Elegir el país por su número de habitantes.' },
-          { id: 'azar', text: 'Ignorar la información y escoger un país al azar.' },
+          { id: 'p497', text: '49,7' },
+          { id: 'p5854', text: '58,54' },
+          { id: 'p6315', text: '63,15' },
+          { id: 'p6993', text: '69,93' },
         ],
-        answer: 'ana',
-        explain: 'El analista debe analizar la información ambiental disponible.',
+        answer: 'p6315',
+        explain: 'Según la presentación de Japón, obtuvo 63,15 en el EPI 2026.',
       },
-      // 4 · Conclusión no sustentada (el dato es inventado a propósito y se presenta como SOSPECHOSO)
+      // 4 · Verdadero o falso
       {
         type: 'suspect',
-        title: '⚠️ DATO SOSPECHOSO',
-        claim: 'Japón ocupa el puesto número 2 del EPI con 87,4 puntos.',
-        prompt: '¿PUEDES VALIDAR ESTA CONCLUSIÓN CON LA INFORMACIÓN DISPONIBLE EN ESTE LABORATORIO?',
+        title: '❓ VERDADERO O FALSO',
+        stamp: 'POR EVALUAR',
+        note: 'Lee la afirmación y decide si es verdadera o falsa.',
+        claim: 'En el EPI, una puntuación más alta indica un mejor desempeño frente a los objetivos ambientales evaluados.',
+        prompt: '¿ES VERDADERA O FALSA ESTA AFIRMACIÓN?',
         options: [
-          { id: 'si-datos', text: 'Sí, porque todos los datos del EPI están disponibles aquí.' },
-          { id: 'no', text: 'No, porque el material disponible no proporciona ese ranking ni ese puntaje.' },
-          { id: 'si-pais', text: 'Sí, porque Japón es uno de los países estudiados.' },
-          { id: 'si-todos', text: 'Sí, porque todos los países tienen un puntaje conocido.' },
+          { id: 'v', text: 'Verdadero' },
+          { id: 'f', text: 'Falso' },
         ],
-        answer: 'no',
-        explain: 'Sin ranking ni puntaje en el material, esa conclusión no se puede validar.',
+        answer: 'v',
+        explain: 'Verdadero: en el EPI, una puntuación más alta indica un mejor desempeño ambiental.',
       },
-      // 5 · Cierre conceptual
+      // 5 · Situación / análisis
       {
         type: 'diagnosis',
         title: '🧩 DIAGNÓSTICO EPI',
-        text: 'El sistema necesita seleccionar una opción que represente correctamente el objetivo del análisis.',
-        prompt: '¿Cuál de estas opciones representa mejor el propósito del análisis EPI?',
+        text: 'Un equipo está comparando varios países mediante el EPI y quiere identificar cuál presenta mejores resultados ambientales.',
+        prompt: '¿Qué debería hacer principalmente?',
         options: [
-          { id: 'amb', text: 'Comparar y analizar el desempeño ambiental de los países.' },
-          { id: 'ter', text: 'Clasificar los países solamente por tamaño territorial.' },
-          { id: 'pob', text: 'Clasificar los países por población.' },
-          { id: 'ciu', text: 'Ordenar los países por cantidad de ciudades.' },
+          { id: 'ind', text: 'Comparar sus resultados y analizar los indicadores ambientales evaluados.' },
+          { id: 'ter', text: 'Comparar solamente el tamaño de sus territorios.' },
+          { id: 'pob', text: 'Revisar únicamente su población.' },
+          { id: 'com', text: 'Comparar solamente sus niveles de comercio.' },
         ],
-        answer: 'amb',
-        explain: 'El análisis EPI busca comparar y analizar el desempeño ambiental de los países.',
+        answer: 'ind',
+        explain: 'Debe comparar los resultados y analizar los indicadores ambientales evaluados.',
       },
     ],
   });

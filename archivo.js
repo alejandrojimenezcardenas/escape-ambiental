@@ -18,12 +18,24 @@
     gotemburgo: { name: 'Protocolo de Gotemburgo', icon: '🏭' },
     escazu:     { name: 'Acuerdo de Escazú',       icon: '🗣️' },
     basilea:    { name: 'Convenio de Basilea',     icon: '♻️' },
-    ginebra:    { name: 'Convenio de Ginebra',     icon: '🌫️' },
+    ginebra:    { name: 'Convenio de Ginebra de 1979', icon: '🌫️' },
     cites:      { name: 'CITES',                   icon: '🦜' },
-    ramsar:     { name: 'Convenio de Ramsar',      icon: '🦆' },
+    ramsar:     { name: 'Convenio Ramsar',         icon: '🦆' },
     paris:      { name: 'Acuerdo de París (COP21)', icon: '🌍' },
     montreal:   { name: 'Protocolo de Montreal',   icon: '🛡️' },
     brundtland: { name: 'Informe Brundtland',      icon: '📘' },
+
+    // Opciones de texto de esta estación (respuestas largas y tarjetas de temas)
+    bru_a: { name: 'El desarrollo sostenible, teniendo en cuenta las necesidades actuales sin comprometer las de las futuras generaciones.', icon: '🌱' },
+    bru_b: { name: 'Aumentar únicamente la producción industrial.', icon: '🏭' },
+    bru_c: { name: 'Reducir el comercio internacional.',            icon: '🚢' },
+    bru_d: { name: 'Prohibir el uso de recursos naturales.',        icon: '🚫' },
+    tema_cites:    { name: 'Comercio internacional de especies de fauna y flora silvestres', icon: '🦜' },
+    tema_ramsar:   { name: 'Conservación y uso adecuado de humedales',                       icon: '💧' },
+    tema_kioto:    { name: 'Reducción de emisiones de gases de efecto invernadero',          icon: '🌡️' },
+    tema_basilea:  { name: 'Movimiento de residuos peligrosos entre países',                 icon: '♻️' },
+    tema_escazu:   { name: 'Información, participación y justicia en asuntos ambientales',   icon: '🗣️' },
+    tema_montreal: { name: 'Protección de la capa de ozono',                                 icon: '☀️' },
   };
 
   // Franja decorativa de estantería con libros (pixel art)
@@ -59,49 +71,49 @@
       {
         type: 'choice',
         title: '⚡ SELECCIÓN RÁPIDA',
-        prompt: '¿Qué informe popularizó la idea de "desarrollo sostenible"?',
-        options: ['brundtland', 'kioto', 'rotterdam', 'escazu'],
-        answer: 'brundtland',
-        explain: 'El Informe Brundtland ("Nuestro futuro común") planteó el desarrollo sostenible.',
+        prompt: '¿Qué busca promover el Informe Brundtland?',
+        options: ['bru_a', 'bru_b', 'bru_c', 'bru_d'],
+        answer: 'bru_a',
+        explain: 'El Informe Brundtland relaciona el desarrollo actual con la protección de las necesidades de las futuras generaciones.',
       },
-      // 2 · Relacionar concepto con instrumento
+      // 2 · Relacionar situación con instrumento (una situación, cuatro instrumentos)
       {
         type: 'match',
         title: '🔗 RELACIONA',
-        prompt: 'Toca un tema y luego el instrumento que le corresponde.',
+        prompt: '¿Cuál instrumento está directamente relacionado con este objetivo? Toca la situación y luego el instrumento.',
         pairs: [
-          { id: 'humedales', concept: 'Humedales',           icon: '💧', instrument: 'ramsar' },
-          { id: 'especies',  concept: 'Especies amenazadas', icon: '🐾', instrument: 'cites' },
-          { id: 'ozono',     concept: 'Capa de ozono',       icon: '☀️', instrument: 'montreal' },
+          { id: 'emisiones', concept: 'Un país necesita reducir sus emisiones de gases de efecto invernadero.', icon: '🌡️', instrument: 'kioto' },
         ],
-        explain: 'Ramsar: humedales · CITES: especies amenazadas · Montreal: capa de ozono.',
+        extras: ['ramsar', 'cites', 'basilea'],
+        explain: 'El Protocolo de Kioto busca reducir las emisiones de gases de efecto invernadero.',
       },
       // 3 · Verdadero o falso
       {
         type: 'truefalse',
         title: '❓ VERDADERO O FALSO',
-        statement: 'El Convenio de Basilea regula el comercio internacional de especies amenazadas de fauna y flora.',
-        answer: false,
-        explain: 'Falso: eso corresponde a CITES. Basilea trata los desechos peligrosos y su movimiento entre países.',
+        statement: 'El Acuerdo de París busca limitar el aumento de la temperatura global y promover esfuerzos para enfrentar el cambio climático.',
+        answer: true,
+        explain: 'Verdadero: el Acuerdo de París busca limitar el aumento de la temperatura global y enfrentar el cambio climático.',
       },
-      // 4 · Encuentra el protocolo
+      // 4 · Encuentra la tarjeta
       {
         type: 'cards',
-        title: '🔎 ENCUENTRA EL PROTOCOLO',
-        situation: 'Una comunidad quiere conocer la información ambiental de su país, participar en las decisiones y tener acceso a la justicia en temas ambientales.',
-        options: ['escazu', 'kioto', 'rotterdam', 'ramsar', 'gotemburgo', 'basilea'],
-        answer: 'escazu',
-        explain: 'Acuerdo de Escazú: información, participación pública y justicia en asuntos ambientales.',
+        title: '🔎 ENCUENTRA LA TARJETA',
+        prompt: 'Encuentra la tarjeta que corresponde a CITES.',
+        options: ['tema_cites', 'tema_ramsar', 'tema_kioto', 'tema_basilea', 'tema_escazu', 'tema_montreal'],
+        answer: 'tema_cites',
+        explain: 'CITES regula el comercio internacional de especies de fauna y flora silvestres.',
       },
-      // 5 · Reto final relámpago (con cuenta atrás)
+      // 5 · Decisión rápida (con cuenta atrás)
       {
         type: 'speed',
-        title: '⏱ RETO FINAL RELÁMPAGO',
-        prompt: '¡Rápido! ¿Qué acuerdo adoptado en la COP21 busca limitar el calentamiento global?',
-        options: ['paris', 'kioto', 'montreal', 'ginebra', 'gotemburgo', 'cites'],
-        answer: 'paris',
+        title: '⏱ DECISIÓN RÁPIDA',
+        situation: 'Un país quiere proteger y conservar sus humedales y promover su uso adecuado.',
+        prompt: '¿Qué instrumento debe consultar?',
+        options: ['ramsar', 'kioto', 'ginebra', 'montreal'],
+        answer: 'ramsar',
         seconds: 15,
-        explain: 'El Acuerdo de París (COP21) busca limitar el calentamiento global.',
+        explain: 'El Convenio Ramsar protege y conserva los humedales y promueve su uso adecuado.',
       },
     ],
   });

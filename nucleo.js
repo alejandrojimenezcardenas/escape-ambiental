@@ -35,7 +35,18 @@
   };
 
   // EPI no es un convenio: se describe aquí; el resto sale de EA.INSTRUMENTS
-  const EXTRA = { epi: { name: 'EPI (análisis)', icon: '📊' } };
+  const EXTRA = {
+    epi: { name: 'EPI (análisis)', icon: '📊' },
+    // Opciones de texto (reto 1 y reto 2)
+    ren_a: { name: 'Impulsar energías renovables y reducir las emisiones.', icon: '☀️' },
+    ren_b: { name: 'Aumentar el consumo de combustibles fósiles.',          icon: '🛢️' },
+    ren_c: { name: 'Eliminar el control de emisiones.',                     icon: '🚫' },
+    ren_d: { name: 'Aumentar únicamente el transporte contaminante.',       icon: '🚚' },
+    alem_a: { name: 'Transporte de carga más limpio.',                      icon: '🚛' },
+    alem_b: { name: 'Mayor contaminación.',                                 icon: '🏭' },
+    alem_c: { name: 'Mayor consumo de combustibles fósiles.',               icon: '🛢️' },
+    alem_d: { name: 'Eliminación del transporte de mercancías.',            icon: '📦' },
+  };
   const instr = (id) => EXTRA[id] || EA.INSTRUMENTS[id];
 
   // Marca la opción tocada (y la correcta si falló) y avisa al motor: una sola oportunidad.
@@ -99,6 +110,10 @@
         if (linked === ch.pairs.length) {
           ctx.finish(mistakes === 0, mistakes ? `Tuviste ${mistakes} error${mistakes > 1 ? 'es' : ''} al conectar.` : '');
         }
+      } else if (ch.extras) {          // una sola situación con varias opciones: fallo inmediato
+        [a, b].forEach((x) => x.classList.add('bad'));
+        right.querySelector(`[data-id="${ch.pairs[0].instrument}"]`).classList.add('linked', 'link-1');
+        ctx.finish(false);
       } else {
         mistakes += 1;
         [a, b].forEach((x) => { x.classList.add('bad'); setTimeout(() => x.classList.remove('bad'), 350); });
@@ -121,11 +136,11 @@
       b.addEventListener('click', () => pick(b, 'c'));
       left.append(b);
     });
-    shuffle(ch.pairs).forEach((p) => {
+    shuffle(ch.pairs.map((p) => p.instrument).concat(ch.extras || [])).forEach((id) => {
       const b = h('button', 'opt small');
       b.type = 'button';
-      b.dataset.id = p.instrument;
-      b.append(h('span', 'opt-ico', instr(p.instrument).icon), h('span', 'opt-txt', instr(p.instrument).name));
+      b.dataset.id = id;
+      b.append(h('span', 'opt-ico', instr(id).icon), h('span', 'opt-txt', instr(id).name));
       b.addEventListener('click', () => pick(b, 'i'));
       right.append(b);
     });
@@ -147,7 +162,8 @@
       b.addEventListener('click', () => choose(b, o.id, ch, ctx, list, () => {
         // la afirmación con el error queda marcada con ❌ y las coherentes con ✔
         list.querySelectorAll('.finding').forEach((x) => {
-          x.querySelector('.tick').textContent = x.dataset.id === ch.answer ? '❌' : '✔';
+          const isAnswer = x.dataset.id === ch.answer;
+          x.querySelector('.tick').textContent = (isAnswer !== !!ch.answerIsRight) ? '❌' : '✔';
         });
       }));
       list.append(b);
@@ -289,70 +305,72 @@
     drawBanner,
     onOpen,
     challenges: [
-      // 1 · Situación → instrumento (Basilea, situación nueva)
+      // 1 · Decisión ambiental
       {
         type: 'decide',
         title: '🚦 DECISIÓN AMBIENTAL',
-        situation: 'Una empresa quiere enviar desechos peligrosos a otro país para tratarlos.',
-        prompt: '¿Qué convenio está relacionado con esta situación?',
-        options: ['basilea', 'kioto', 'escazu', 'cites'],
-        answer: 'basilea',
-        explain: 'Convenio de Basilea: movimiento de desechos peligrosos entre países.',
+        situation: 'Un país quiere avanzar hacia una economía con menor uso de combustibles fósiles y aumentar el uso de energías renovables.',
+        prompt: '¿Cuál de estas acciones está más relacionada con ese objetivo?',
+        options: ['ren_a', 'ren_b', 'ren_c', 'ren_d'],
+        answer: 'ren_a',
+        explain: 'Impulsar energías renovables y reducir las emisiones es lo que conduce a ese objetivo.',
       },
-      // 2 · Conectar ideas con instrumentos (3 parejas, redactadas de otra forma)
+      // 2 · Conecta el concepto (una situación, cuatro opciones)
       {
         type: 'connect',
         title: '🧩 CONECTA EL CONCEPTO',
-        prompt: 'Une cada idea con su instrumento: toca una y después la otra.',
+        prompt: 'Alemania utiliza un sistema de cobro para el transporte de carga que incorpora criterios relacionados con las emisiones de CO₂. ¿Qué busca favorecer este tipo de medida? Toca la situación y luego la respuesta.',
         pairs: [
-          { id: 'desempeno', concept: 'Medir cómo le va a un país en lo ambiental', icon: '🔎', instrument: 'epi' },
-          { id: 'pantanos',  concept: 'Cuidar pantanos y lagunas con uso responsable', icon: '🌾', instrument: 'ramsar' },
-          { id: 'calor',     concept: 'Reducir los gases que calientan el planeta',    icon: '🌡️', instrument: 'kioto' },
+          { id: 'alemania', concept: 'Alemania: cobro para el transporte de carga según las emisiones de CO₂', icon: '🚛', instrument: 'alem_a' },
         ],
-        explain: 'EPI: desempeño ambiental · Ramsar: uso responsable de pantanos · Kioto: gases que calientan el planeta.',
+        extras: ['alem_b', 'alem_c', 'alem_d'],
+        explain: 'Este tipo de medida busca favorecer un transporte de carga más limpio.',
       },
-      // 3 · Detectar el error conceptual (dos afirmaciones coherentes, una incorrecta)
+      // 3 · ¿Qué está mal?
       {
         type: 'finderror',
         title: '⚠️ ¿QUÉ ESTÁ MAL?',
-        intro: 'El sistema recibió este informe. Dos afirmaciones son coherentes y una contiene un error.',
-        prompt: '¿Qué afirmación es la incorrecta?',
+        intro: '"Si una empresa fabrica un producto, toda la responsabilidad ambiental termina cuando el producto se vende."',
+        prompt: '¿Qué está mal en esta afirmación?',
+        answerIsRight: true,
         options: [
-          { id: 'a', text: 'La comunidad recibió información ambiental y pudo participar (Acuerdo de Escazú).' },
-          { id: 'b', text: 'Los países adoptaron el Acuerdo de París en la COP21, en 2015.' },
-          { id: 'c', text: 'Para analizar su desempeño ambiental, el país usó el Protocolo de Montreal.' },
+          { id: 'a', text: 'Ignora la responsabilidad del productor sobre los impactos ambientales asociados al producto.' },
+          { id: 'b', text: 'El producto deja de existir después de venderse.' },
+          { id: 'c', text: 'El consumidor no utiliza productos.' },
+          { id: 'd', text: 'Las empresas no producen residuos.' },
         ],
-        answer: 'c',
-        explain: 'El desempeño ambiental se analiza con el EPI; el Protocolo de Montreal es otro instrumento.',
+        answer: 'a',
+        explain: 'La responsabilidad del productor sobre los impactos ambientales del producto no termina con la venta.',
       },
-      // 4 · Plan de acción (CITES, situación práctica nueva)
+      // 4 · Plan de acción
       {
         type: 'plan',
         title: '🌎 PLAN DE ACCIÓN',
-        concept: 'comercio internacional de animales y plantas en peligro',
-        situation: 'Una comunidad costera descubre que un comerciante quiere vender a otro país animales silvestres en peligro de extinción.',
-        prompt: '¿Qué acción es más coherente con el concepto?',
+        concept: 'residuos y gestión de productos usados',
+        situation: 'Una empresa quiere disminuir los residuos y mejorar la gestión de sus productos después de ser utilizados.',
+        prompt: '¿Cuál acción sería más adecuada?',
         options: [
-          { id: 'avisar', icon: '📢', text: 'Avisar a las autoridades y no participar en esa venta.' },
-          { id: 'revender', icon: '💰', text: 'Comprarlos para revenderlos a un precio más alto.' },
-          { id: 'ignorar', icon: '🙈', text: 'Ignorarlo porque no afecta a la comunidad.' },
+          { id: 'circular', icon: '♻️', text: 'Implementar medidas de economía circular y logística inversa.' },
+          { id: 'final', icon: '🗑️', text: 'Aumentar los residuos enviados directamente a disposición final.' },
+          { id: 'sinrec', icon: '🚫', text: 'Eliminar la recuperación de materiales.' },
+          { id: 'masmat', icon: '🏭', text: 'Utilizar más materiales sin posibilidad de aprovechamiento.' },
         ],
-        answer: 'avisar',
-        explain: 'Lo coherente es no participar en ese comercio y avisar a las autoridades (CITES).',
+        answer: 'circular',
+        explain: 'La economía circular y la logística inversa permiten disminuir residuos y aprovechar los productos usados.',
       },
-      // 5 · Código: tres pistas (concepto, situación, decisión) apuntan a un solo instrumento
+      // 5 · Código ambiental: tres pistas apuntan a un solo instrumento
       {
         type: 'code',
         title: '🔐 CÓDIGO AMBIENTAL',
         clues: [
-          { label: 'CONCEPTO', text: 'Es un informe de 1987, no un tratado.' },
-          { label: 'SITUACIÓN', text: 'Un pueblo pesquero quiere seguir viviendo del mar durante muchos años.' },
-          { label: 'DECISIÓN', text: 'Planificar pensando también en las generaciones futuras.' },
+          { label: 'PISTA', text: 'Protege ecosistemas de gran importancia como los humedales.' },
+          { label: 'PISTA', text: 'Promueve su conservación y uso racional.' },
+          { label: 'PISTA', text: 'Es un instrumento internacional.' },
         ],
-        prompt: '¿Qué instrumento abre el código?',
-        options: ['brundtland', 'montreal', 'basilea', 'ramsar'],
-        answer: 'brundtland',
-        explain: 'Informe de Brundtland (1987): desarrollo sostenible, pensando en las generaciones futuras.',
+        prompt: '¿Qué instrumento estás buscando?',
+        options: ['ramsar', 'kioto', 'cites', 'basilea'],
+        answer: 'ramsar',
+        explain: 'El Convenio Ramsar protege los humedales y promueve su conservación y uso racional.',
       },
     ],
   });

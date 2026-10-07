@@ -667,6 +667,10 @@
         if (matched === ch.pairs.length) {
           ctx.finish(mistakes === 0, mistakes ? `Tuviste ${mistakes} error${mistakes > 1 ? 'es' : ''} al relacionar.` : '');
         }
+      } else if (ch.extras) {          // una sola situación con varias opciones: fallo inmediato
+        a.classList.add('bad'); b.classList.add('bad');
+        right.querySelector(`[data-id="${ch.pairs[0].instrument}"]`).classList.add('matched');
+        ctx.finish(false);
       } else {
         mistakes += 1;
         [a, b].forEach((x) => {
@@ -692,11 +696,11 @@
       b.addEventListener('click', () => pick(b, 'c'));
       left.append(b);
     });
-    shuffle(ch.pairs).forEach((p) => {
+    shuffle(ch.pairs.map((p) => p.instrument).concat(ch.extras || [])).forEach((id) => {
       const b = h('button', 'opt small');
       b.type = 'button';
-      b.dataset.id = p.instrument;
-      b.append(h('span', 'opt-ico', instr(p.instrument).icon), h('span', 'opt-txt', instr(p.instrument).name));
+      b.dataset.id = id;
+      b.append(h('span', 'opt-ico', instr(id).icon), h('span', 'opt-txt', instr(id).name));
       b.addEventListener('click', () => pick(b, 'i'));
       right.append(b);
     });
@@ -730,6 +734,7 @@
       const s = h('div', 'situation');
       s.append(h('span', 'sit-k', '📋 SITUACIÓN'), h('p', 'prompt', ch.situation));
       box.append(s);
+      if (ch.prompt) box.append(h('p', 'prompt', ch.prompt));
     } else {
       box.append(h('p', 'prompt', ch.prompt));
     }

@@ -33,7 +33,14 @@
     }
     return a;
   };
-  const instr = (id) => EA.INSTRUMENTS[id];
+  // Categorías de CITES: no son instrumentos, se describen aquí
+  const EXTRA = {
+    ap1:  { name: 'Apéndice I',   icon: '1️⃣' },
+    ap2:  { name: 'Apéndice II',  icon: '2️⃣' },
+    ap3:  { name: 'Apéndice III', icon: '3️⃣' },
+    ning: { name: 'Ninguna',      icon: '🚫' },
+  };
+  const instr = (id) => EXTRA[id] || EA.INSTRUMENTS[id];
 
   // Marca la respuesta tocada y, si falló, la correcta; avisa al motor.
   function choose(btn, id, ch, ctx, scope) {
@@ -86,9 +93,9 @@
   R.alert = (box, ch, ctx) => {
     const panel = h('div', 'alert-box');
     panel.append(h('div', 'alert-head', '🚨 ALERTA DETECTADA'));
-    panel.append(h('p', 'alert-text', 'El sistema ha identificado una situación relacionada con ' + ch.topic));
+    panel.append(h('p', 'alert-text', ch.alertText || 'El sistema ha identificado una situación relacionada con ' + ch.topic));
     box.append(panel);
-    box.append(h('p', 'alert-ask', '¿Qué instrumento responde a la alerta?'));
+    box.append(h('p', 'alert-ask', ch.prompt || '¿Qué instrumento responde a la alerta?'));
     const grid = h('div', 'cards three');
     shuffle(ch.options).forEach((id) => {
       const b = h('button', 'card-opt');
@@ -143,53 +150,54 @@
     accent: '#e8433f',
     drawBanner,
     challenges: [
-      // 1 · Selección con situación (respuesta: Rotterdam)
+      // 1 · Selección con situación (respuesta: Basilea)
       {
         type: 'scenario',
         title: '⚠️ SELECCIÓN',
-        situation: 'Un barco llega a un puerto con plaguicidas peligrosos para otro país.',
-        prompt: '¿Qué convenio busca que el país receptor sea informado y dé su consentimiento antes?',
-        options: ['rotterdam', 'basilea', 'ramsar', 'escazu'],
-        answer: 'rotterdam',
-        explain: 'Convenio de Rotterdam: consentimiento informado previo en el comercio de ciertos químicos y plaguicidas peligrosos.',
+        situation: 'Una empresa necesita trasladar residuos peligrosos entre países.',
+        prompt: '¿Qué convenio está relacionado directamente con este caso?',
+        options: ['basilea', 'ramsar', 'cites', 'paris'],
+        answer: 'basilea',
+        explain: 'El Convenio de Basilea regula el movimiento de residuos peligrosos entre países.',
       },
-      // 2 · Relaciona situación → instrumento (respuesta: Kioto)
+      // 2 · Relaciona situación → instrumento (respuesta: Ginebra de 1979)
       {
         type: 'relate',
         title: '🔗 RELACIONA',
-        situation: 'Un país industrializado debe reducir sus emisiones de gases de efecto invernadero.',
+        situation: 'Contaminación del aire que puede desplazarse entre diferentes países y provocar problemas como la lluvia ácida.',
         prompt: '¿A qué instrumento corresponde?',
-        options: ['kioto', 'gotemburgo', 'rotterdam'],
-        answer: 'kioto',
-        explain: 'Protocolo de Kioto: reducción de gases de efecto invernadero por parte de los países industrializados.',
+        options: ['ginebra', 'cites', 'ramsar', 'paris'],
+        answer: 'ginebra',
+        explain: 'El Convenio de Ginebra de 1979 trata la contaminación del aire que se desplaza entre países.',
       },
-      // 3 · Verdadero o falso (sobre Ginebra)
+      // 3 · Verdadero o falso (sobre Escazú)
       {
         type: 'truefalse',
         title: '🧐 ¿VERDADERO O FALSO?',
-        statement: 'El Convenio de Ginebra de 1979 trata sobre la contaminación del aire que cruza las fronteras entre países.',
+        statement: 'El Acuerdo de Escazú está relacionado con el acceso a la información ambiental, la participación pública y el acceso a la justicia en asuntos ambientales.',
         labels: ['✅ VERDADERO', '❌ FALSO'],
         answer: true,
-        explain: 'Verdadero: el Convenio de Ginebra de 1979 es el marco sobre contaminación atmosférica transfronteriza.',
+        explain: 'Verdadero: el Acuerdo de Escazú trata la información ambiental, la participación pública y el acceso a la justicia.',
       },
-      // 4 · Identifica la alerta con tarjetas (respuesta: Gotemburgo, lluvia ácida)
+      // 4 · Alerta con tarjetas (respuesta: Apéndice II de CITES)
       {
         type: 'alert',
         title: '🚨 IDENTIFICA LA ALERTA',
-        topic: 'lluvia ácida que daña bosques y lagos.',
-        options: ['gotemburgo', 'kioto', 'rotterdam'],
-        answer: 'gotemburgo',
-        explain: 'Protocolo de Gotemburgo: reducir la acidificación, la eutrofización y el ozono a nivel del suelo.',
+        alertText: 'Una especie no está necesariamente amenazada actualmente, pero el comercio internacional debe controlarse para evitar que llegue a estarlo.',
+        prompt: '¿A qué categoría de CITES corresponde?',
+        options: ['ap1', 'ap2', 'ap3', 'ning'],
+        answer: 'ap2',
+        explain: 'El Apéndice II de CITES controla el comercio de especies que podrían llegar a estar amenazadas.',
       },
-      // 5 · Decisión final (respuesta: Gotemburgo, otro problema; integra los cuatro instrumentos anteriores)
+      // 5 · Decisión final (respuesta: Kioto)
       {
         type: 'decision',
         title: '🎯 DECISIÓN FINAL',
-        situation: 'Varios países ya cooperan contra la contaminación del aire bajo el convenio de 1979. Ahora sus lagos reciben exceso de nutrientes (eutrofización) y hay ozono a nivel del suelo.',
-        prompt: '¿Qué protocolo deben activar?',
-        options: ['gotemburgo', 'kioto', 'rotterdam', 'ginebra'],
-        answer: 'gotemburgo',
-        explain: 'Gotemburgo concreta la reducción de acidificación, eutrofización y ozono a nivel del suelo; Ginebra es el marco de cooperación.',
+        situation: 'Varios países quieren cooperar para reducir las emisiones de gases de efecto invernadero y utilizar mecanismos de cooperación para alcanzar sus objetivos.',
+        prompt: '¿Cuál instrumento está más relacionado con esta situación?',
+        options: ['kioto', 'ramsar', 'cites', 'basilea'],
+        answer: 'kioto',
+        explain: 'El Protocolo de Kioto busca reducir las emisiones de gases de efecto invernadero con mecanismos de cooperación.',
       },
     ],
   });
