@@ -408,17 +408,58 @@
     $('overlay').hidden = false;
   }
 
+  /* ---------------- paneles del anfitrión: ranking en vivo y requisitos ---------------- */
+  const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  // Se repinta con cada cambio de la sala (Realtime): cada respuesta suma puntos y mueve el ranking.
+  // Solo existe para el anfitrión (los paneles solo se ven con body.role-host).
+  function renderHostBoard(g) {
+    const list = $('hb-list');
+    if (!g || !list) return;
+    const players = g.players.slice().sort((a, b) =>
+      b.score - a.score || (a.exitAt || Infinity) - (b.exitAt || Infinity) || (a.finishedAt || Infinity) - (b.finishedAt || Infinity));
+    const ready = (p) => p.completed.length >= TOTAL_STATIONS && p.score >= EXIT_MIN_POINTS;
+    const out = players.filter((p) => p.exitStatus === 'reached').length;
+    list.innerHTML = '';
+    if (!players.length) list.append(h('li', 'hb-empty', 'SIN JUGADORES'));
+    players.forEach((p, i) => {
+      const c = EA.charById && p.characterId ? EA.charById(p.characterId) : null;
+      let cls = 'hb-row';
+      let status = `${p.completed.length}/${TOTAL_STATIONS} ESTACIONES`;
+      if (p.exitStatus === 'reached') { cls += ' out'; status = '🚪 SALIÓ'; }
+      else if (p.exitStatus === 'blocked') { cls += ' blocked'; status = '🔒 BLOQUEADO'; }
+      else if (ready(p)) { cls += ' can'; status = '✔ PUEDE SALIR'; }
+      const row = h('li', cls);
+      const top = h('div', 'hb-top');
+      top.append(h('span', 'hb-pos', `${i + 1}º`), h('span', 'hb-name', `${c ? c.icon + ' ' : ''}${p.name}`), h('span', 'hb-score', fmt(p.score)));
+      const bar = h('div', 'hb-bar');
+      const fill = h('i');
+      fill.style.width = Math.min(100, Math.round(p.score / EXIT_MIN_POINTS * 100)) + '%';
+      bar.append(fill);
+      const meta = h('div', 'hb-meta');
+      meta.append(h('span', 'hb-st', status), h('span', '', `${fmt(p.score)}/${fmt(EXIT_MIN_POINTS)}`));
+      row.append(top, bar, meta);
+      list.append(row);
+    });
+    $('hr-can').textContent = String(players.filter((p) => ready(p) && p.exitStatus !== 'reached' && p.exitStatus !== 'blocked').length);
+    $('hr-out').textContent = `${out}/${EXIT_TOP}`;
+    $('hr-min').textContent = fmt(EXIT_MIN_POINTS);
+    if (state.role === 'host') $('hud-points').textContent = `${players.length}/10`;
+    EA.fixAccents($('host-board'));
+    EA.fixAccents($('host-rules'));
+  }
+
   /* ---------------- inicio de la partida (lo dispara el anfitrión) ---------------- */
   function setupHud() {
     const host = state.role === 'host';
     $('hud-k1').textContent = 'TIEMPO';
     $('hud-k2').textContent = host ? 'JUGADORES' : 'PUNTOS';
-    $('hud-k3').textContent = host ? 'MODO' : 'ESTACIONES';
+    $('hud-k3').textContent = host ? 'PARA PASAR' : 'ESTACIONES';
     $('hud-time').textContent = '15:00';
     $('hud-time').classList.remove('low');
     const p = me();
     $('hud-points').textContent = host ? `${state.game.players.length}/10` : String(p.score);
-    $('hud-stations').textContent = host ? '📺' : `${p.completedStations.length}/${TOTAL_STATIONS}`;
+    $('hud-stations').textContent = host ? fmt(EXIT_MIN_POINTS) : `${p.completedStations.length}/${TOTAL_STATIONS}`;
     EA.fixAccents($('hud'));
   }
 
@@ -457,6 +498,7 @@
     }
     refreshEligibility();
     setupHud();
+    if (role === 'host') renderHostBoard(game);
     shownTime = '';
     EA.showScreen('room-screen');
     EA.map.start(game, state.player);
@@ -800,6 +842,7 @@
   // El fin de la partida llega por la sala (Realtime): todos los dispositivos pasan al mismo podio
   EA.backend.subscribe((g) => {
     if (!g || !state.role) return;
+    if (state.role === 'host') renderHostBoard(g);                 // ranking en vivo (solo anfitrión)
     if (g.status === 'finished') onRoomFinished();
     if (finalShown) renderPodium(g.players);                       // el podio se actualiza si llegan datos nuevos
   });

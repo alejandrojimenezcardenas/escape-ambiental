@@ -1529,3 +1529,48 @@ body:not(.in-room) .end-btn, body.touch .end-btn { display: none; }
 /* Podio: texto del personaje y mensaje de cálculo */
 .podium-char { font-size: clamp(7px, 1.9vw, 10px); color: #5a6678; }
 .podium-none.calc { color: var(--ink); animation: alertpulse 1.2s ease-in-out infinite; }
+
+/* ---------- Paneles del anfitrión: requisitos y ranking en vivo (solo role-host, solo en la sala) ---------- */
+.host-panel { display: none; }
+body.role-host.in-room:not(.touch) .host-panel {
+  display: block;
+  position: fixed;
+  top: calc(var(--hud-h) + 14px);
+  z-index: 5;
+  /* ancho = espacio libre a cada lado del mapa (centrado); si no cabe, se oculta */
+  width: calc((100vw - (100vh - var(--hud-h) - 64px) * 256 / 200) / 2 - 28px);
+  max-width: 340px;
+  padding: 10px 10px 12px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 -3px 0 0 var(--ink), 0 3px 0 0 var(--ink), -3px 0 0 0 var(--ink), 3px 0 0 0 var(--ink), inset 0 -3px 0 0 var(--paper-edge);
+}
+body.role-host.in-room .host-rules { left: 14px; }
+body.role-host.in-room .host-board { right: 14px; max-height: calc(100vh - var(--hud-h) - 40px); overflow-y: auto; }
+@media (max-width: 1250px) { body.role-host.in-room .host-panel { display: none; } }
+
+.hp-title { margin: 0 0 10px; font-size: 10px; line-height: 1.5; text-align: center; color: var(--ink); }
+.hp-list { margin: 0 0 10px; padding: 0; list-style: none; font-size: 8px; line-height: 1.9; }
+.hp-list li::before { content: "✔ "; color: var(--green); }
+.hp-list b { color: var(--red-dark); font-size: 10px; }
+.hp-sub { margin: 0 0 10px; font-size: 7px; line-height: 1.8; color: #5a6678; }
+.hp-stats { display: flex; gap: 8px; }
+.hp-stats div { flex: 1; padding: 6px 4px; text-align: center; background: #fff; box-shadow: 0 0 0 2px var(--ink); }
+.hp-stats span { display: block; font-size: 16px; }
+.hp-stats small { display: block; margin-top: 5px; font-size: 6px; color: #5a6678; }
+
+.hb-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.hb-empty { font-size: 8px; text-align: center; color: #5a6678; padding: 10px 0; }
+.hb-row { padding: 6px 7px 7px; background: #fff; box-shadow: 0 0 0 2px var(--ink); transition: background .3s; }
+.hb-row.can { background: #dff7df; }
+.hb-row.out { background: #fff3b0; }
+.hb-row.blocked { background: #fde0de; }
+.hb-top { display: flex; align-items: center; gap: 6px; font-size: 9px; }
+.hb-pos { width: 18px; color: #5a6678; }
+.hb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-score { font-size: 11px; }
+.hb-bar { position: relative; height: 8px; margin: 6px 0 4px; background: #d9dfe8; box-shadow: 0 0 0 2px var(--ink); }
+.hb-bar i { display: block; height: 100%; width: 0; background: var(--green); transition: width .5s steps(8); }
+.hb-row.can .hb-bar i, .hb-row.out .hb-bar i { background: var(--green-dark); }
+.hb-meta { display: flex; justify-content: space-between; gap: 6px; font-size: 7px; color: #5a6678; }
+.hb-st { color: var(--ink); }

@@ -220,6 +220,25 @@
 
   <!-- Botón del anfitrión (solo computador) + confirmación -->
   <button id="end-game" type="button" class="btn-small end-btn" hidden>⏹ TERMINAR PARTIDA</button>
+
+  <!-- PANELES DEL ANFITRIÓN (solo se ven con body.role-host en la sala; los jugadores no los ven) -->
+  <aside id="host-rules" class="host-panel host-rules" aria-label="Requisitos para salir">
+    <p class="hp-title">🚪 PARA PASAR LA PUERTA</p>
+    <ul class="hp-list">
+      <li><b>4/4</b> estaciones completas</li>
+      <li><b id="hr-min">1.200</b> puntos mínimo</li>
+      <li>Solo los <b>3 mejores</b> salen</li>
+    </ul>
+    <p class="hp-sub">Cada acierto <b>+100</b> · Bonus <b>+500</b> con 3 de 5 aciertos en la estación</p>
+    <div class="hp-stats">
+      <div><span id="hr-can">0</span><small>PUEDEN SALIR</small></div>
+      <div><span id="hr-out">0/3</span><small>YA SALIERON</small></div>
+    </div>
+  </aside>
+  <aside id="host-board" class="host-panel host-board" aria-label="Ranking en vivo">
+    <p class="hp-title">🏆 RANKING EN VIVO</p>
+    <ol id="hb-list" class="hb-list"></ol>
+  </aside>
   <div id="confirm-end" class="modal" role="dialog" aria-modal="true" hidden>
     <div class="card overlay-card">
       <h2 class="done-title">¿Seguro que deseas terminar la partida?</h2>
