@@ -19,7 +19,8 @@
 
   const TOTAL_STATIONS = 4;
   const POINTS_CORRECT = 100;       // respuesta correcta; la incorrecta suma 0 (sin penalización)
-  const POINTS_STATION = 500;       // bonus al completar una estación
+  const POINTS_STATION = 500;       // bonus al completar una estación...
+  const STATION_MIN_CORRECT = 3;    // ...pero solo si acierta al menos 3 de sus 5 retos (si no, 0 de bonus)
   const DELAY_OK = 500;             // ms que se ve "CORRECTO" antes de avanzar (casi inmediato)
   const DELAY_BAD = 1500;           // ms que se ve "INCORRECTO"; tocar el aviso lo salta al instante
   const GAME_MS = 15 * 60 * 1000;   // cuenta regresiva global de 15 minutos
@@ -600,15 +601,18 @@
     const def = stations[id];
     const correct = results(id).filter(Boolean).length;
     p.completedStations.push(id);
-    p.stationScores[id] = correct * POINTS_CORRECT + POINTS_STATION;
+    const bonus = correct >= STATION_MIN_CORRECT ? POINTS_STATION : 0;
+    p.stationScores[id] = correct * POINTS_CORRECT + bonus;
     if (p.completedStations.length >= TOTAL_STATIONS) p.finishedAt = Date.now();
-    updatePoints(POINTS_STATION);
+    updatePoints(bonus);
     updateStationsHud();
     markStationCompleted(id);
     refreshEligibility();
     $('done-title').textContent = def.doneTitle || `🎉 ¡${def.name} COMPLETADO!`;
+    $('done-bonus').textContent = bonus ? `+${bonus} PUNTOS DE BONUS` : 'SIN BONUS';
     $('done-detail').textContent =
-      `Aciertos: ${correct}/${def.challenges.length} (+${correct * POINTS_CORRECT}) · Bonus de estación: +${POINTS_STATION}`;
+      `Aciertos: ${correct}/${def.challenges.length} (+${correct * POINTS_CORRECT}) · ` +
+      (bonus ? `Bonus de estación: +${bonus}` : `Para el bonus necesitas ${STATION_MIN_CORRECT} aciertos`);
     $('done-stations').textContent = `${p.completedStations.length}/${TOTAL_STATIONS}`;
     EA.fixAccents($('done-title'));
     EA.fixAccents($('done-detail'));

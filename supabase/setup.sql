@@ -303,11 +303,11 @@ begin
 end $$;
 
 -- JUGADOR: guarda su progreso. El servidor RECALCULA puntos y estaciones desde los retos
--- contestados (+100 por acierto, +500 por estación de 5 retos) y no deja cambiar respuestas ya dadas.
+-- contestados (+100 por acierto, +500 por estación de 5 retos con 3+ aciertos) y no deja cambiar respuestas ya dadas.
 create or replace function public.report_progress(p_challenges jsonb)
 returns public.players language plpgsql security definer set search_path = public as $$
 declare
-  p public.players; k text; arr jsonb; old jsonb; n int; i int;
+  p public.players; k text; arr jsonb; old jsonb; n int; i int; c int;
   valid text[] := array['archivo','emergencias','laboratorio','nucleo'];
   ss jsonb := '{}'::jsonb; total int := 0; comp text[]; done text[] := '{}'; st int;
 begin
@@ -325,7 +325,8 @@ begin
     for i in 0 .. jsonb_array_length(old) - 1 loop
       if (arr -> i) <> (old -> i) then raise exception 'cannot_change_answer'; end if;     -- un solo intento
     end loop;
-    st := 100 * (select count(*) from jsonb_array_elements(arr) a where a = 'true'::jsonb) + case when n = 5 then 500 else 0 end;
+    c := (select count(*) from jsonb_array_elements(arr) a where a = 'true'::jsonb);
+    st := 100 * c + case when n = 5 and c >= 3 then 500 else 0 end;      -- el bonus exige 3 aciertos de 5
     ss := ss || jsonb_build_object(k, st);
     total := total + st;
     if n = 5 then done := done || k; end if;
