@@ -46,6 +46,10 @@ create table if not exists public.players (
 -- Resultado final (lo fija el servidor al terminar la partida): 1, 2 o 3 = puesto en el podio
 alter table public.players add column if not exists final_rank int;
 
+-- Actividad: última vez que cada dispositivo avisó que sigue conectado (ver ping / _close_stale_rooms)
+alter table public.rooms   add column if not exists host_seen timestamptz not null default now();
+alter table public.players add column if not exists last_seen timestamptz not null default now();
+
 -- Puntaje: 5 retos x 100 + 500 de bonus por estación = 1.000 por estación, 4.000 en total
 alter table public.players drop constraint if exists players_score_check;
 alter table public.players add constraint players_score_check check (score between 0 and 4000);
@@ -113,6 +117,7 @@ declare
   c text; r public.rooms; tries int := 0;
 begin
   if uid is null then raise exception 'no_auth'; end if;
+  perform public._close_stale_rooms();
   update public.rooms set status = 'finished' where host_id = uid and status <> 'finished';   -- un solo anfitrión por sala
   loop
     c := '';
@@ -137,6 +142,7 @@ declare
 begin
   if uid is null then raise exception 'no_auth'; end if;
   if nm = '' or char_length(nm) > 12 then raise exception 'bad_name'; end if;
+  perform public._close_stale_rooms();
   select * into r from public.rooms where code = upper(btrim(coalesce(p_code, ''))) and status <> 'finished' for update;
   if not found then raise exception 'room_not_found'; end if;
   if r.host_id = uid then raise exception 'host_cannot_play'; end if;
@@ -203,6 +209,56 @@ begin
        where room_id = rid and coalesce(array_length(completed_stations, 1), 0) = 4 and score >= 1200
     ) r
    where p.id = r.id and r.rk <= 3;
+end $$;
+
+-- Cierra solas las salas abandonadas (nadie pulsó TERMINAR PARTIDA y ya no hay actividad):
+--   * en juego: pasaron más de 17 min desde el inicio (15:00 de juego + 2 min de margen), o
+--               ni el anfitrión ni ningún jugador avisó que sigue conectado en los últimos 3 min
+--   * en espera: nadie avisó en los últimos 10 min
+-- Al cerrar una partida en juego se calcula el podio igual que con TERMINAR PARTIDA.
+create or replace function public._close_stale_rooms()
+returns void language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  for r in
+    select ro.id, ro.status from public.rooms ro
+     where ro.status <> 'finished'
+       and (
+            (ro.status = 'playing' and now() > ro.start_at + interval '17 minutes')
+         or (ro.status = 'playing' and greatest(ro.host_seen, coalesce((select max(p.last_seen) from public.players p where p.room_id = ro.id), ro.host_seen)) < now() - interval '3 minutes')
+         or (ro.status = 'waiting' and greatest(ro.host_seen, coalesce((select max(p.last_seen) from public.players p where p.room_id = ro.id), ro.host_seen)) < now() - interval '10 minutes')
+       )
+     for update of ro skip locked
+  loop
+    if r.status = 'playing' then perform public._finalize_room(r.id); end if;
+    update public.rooms set status = 'finished' where id = r.id;
+  end loop;
+end $$;
+
+-- Cualquiera: cierra las salas abandonadas (la usa el cliente al reconectarse)
+create or replace function public.close_stale_rooms()
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'no_auth'; end if;
+  perform public._close_stale_rooms();
+end $$;
+
+-- Cualquiera de la sala (anfitrión o jugador): "sigo conectado". Devuelve el estado de la sala.
+create or replace function public.ping(p_room uuid)
+returns text language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); r public.rooms; st text;
+begin
+  if uid is null then raise exception 'no_auth'; end if;
+  select * into r from public.rooms where id = p_room;
+  if not found then return 'finished'; end if;
+  if r.host_id = uid then
+    update public.rooms set host_seen = now() where id = r.id and status <> 'finished';
+  else
+    update public.players set last_seen = now() where room_id = r.id and user_id = uid;
+  end if;
+  perform public._close_stale_rooms();
+  select status into st from public.rooms where id = r.id;
+  return coalesce(st, 'finished');
 end $$;
 
 -- Cualquiera de la sala: cierra la partida cuando el reloj del SERVIDOR pasó los 15:00
@@ -322,7 +378,7 @@ revoke execute on all functions in schema public from public, anon;
 grant execute on function
   public.server_now(), public.create_room(), public.join_room(text, text), public.choose_character(text),
   public.start_game(uuid), public.finish_game(uuid), public.end_game(uuid), public.report_progress(jsonb),
-  public.save_position(real, real), public.claim_exit(),
+  public.save_position(real, real), public.claim_exit(), public.ping(uuid), public.close_stale_rooms(),
   public.can_see_room(uuid), public.can_use_topic(text)          -- las usan las políticas RLS
   to authenticated;
 

@@ -370,7 +370,11 @@
     if (B.configured && !params.has('nuevo')) {
       const order = isTouch() ? ['player'] : ['host', 'player'];
       for (const r of order) {
-        if (!B.loadSession(r)) continue;
+        const saved = B.loadSession(r);
+        if (!saved) continue;
+        // entra con el QR/enlace de OTRA partida: se descarta la sala vieja en vez de reconectarse a ella
+        const qrCode = (params.get('codigo') || '').toUpperCase();
+        if (r === 'player' && qrCode && saved.code && saved.code !== qrCode) { B.clearSession(r); continue; }
         EA.showToast('Reconectando a la partida…', 6000);
         const g = await B.resume(r);
         if (!g) continue;

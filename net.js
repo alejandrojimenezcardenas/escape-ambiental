@@ -24,6 +24,7 @@
   const lib = window.supabase;
   const SESSION = 'ea-session-';
   const POLL_MS = 6000;
+  const PING_MS = 20000;       // "sigo conectado": el servidor cierra las salas sin actividad (ver setup.sql)
 
   // Date.parse no acepta bien más de 3 decimales en todos los navegadores
   const ts = (s) => (s ? Date.parse(String(s).replace(/(\.\d{3})\d+/, '$1')) : 0);
@@ -62,6 +63,7 @@
     chPos: null,
     posReady: false,
     pollId: 0,
+    pingId: 0,
     clockId: 0,
 
     now() { return Date.now() + this.offset; },
@@ -110,7 +112,17 @@
 
       window.addEventListener('online', () => { this.refresh().catch(() => {}); this.syncClock().catch(() => {}); });
       window.addEventListener('offline', () => this.setOnline(false));
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) this.refresh().catch(() => {}); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) { this.ping(); this.refresh().catch(() => {}); } });
+    },
+
+    // Avisa al servidor que este dispositivo sigue conectado. Si la sala ya se cerró (por inactividad
+    // u otro motivo) se vuelve a leer para que la pantalla lo muestre.
+    async ping() {
+      if (!this.room || this.room.status === 'finished') return;
+      try {
+        const st = await this.call('ping', { p_room: this.room.id });
+        if (st === 'finished') await this.refresh();
+      } catch (e) { /* sin red o servidor sin actualizar: el siguiente aviso lo reintenta */ }
     },
 
     async call(fn, args) {
@@ -151,6 +163,7 @@
 
     detach() {
       clearInterval(this.pollId);
+      clearInterval(this.pingId);
       if (this.chDb) this.sb.removeChannel(this.chDb);
       if (this.chPos) this.sb.removeChannel(this.chPos);
       this.chDb = this.chPos = null;
@@ -182,6 +195,8 @@
 
       // respaldo: por si Realtime pierde un aviso
       this.pollId = setInterval(() => this.refresh().catch(() => {}), POLL_MS);
+      this.ping();
+      this.pingId = setInterval(() => this.ping(), PING_MS);
     },
 
     onPlayerChange(pl) {
@@ -234,6 +249,7 @@
       try {
         await this.init(role);
         await this.clockReady;                       // al retomar una partida en curso el reloj debe estar bien
+        await this.call('close_stale_rooms').catch(() => {});   // si la sala quedó abandonada, se cierra y no se retoma
         if (role === 'host') {
           const { data } = await this.sb.from('rooms').select('*').eq('id', s.roomId).maybeSingle();
           if (!data || data.status === 'finished' || data.host_id !== this.uid) { this.clearSession(role); return null; }
