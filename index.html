@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <script>var EA_V = Date.now(); document.write('<link rel="stylesheet" href="style.css?v=' + EA_V + '">');</script>
 </head>
 <body>
   <!-- Fondo pixel art (se dibuja en game.js) -->
@@ -277,16 +277,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-  <script src="supabase-config.js"></script>
-  <script src="game.js"></script>
-  <script src="characters.js"></script>
-  <script src="net.js"></script>
-  <script src="lobby.js"></script>
-  <script src="partida.js"></script>
-  <script src="mapa.js"></script>
-  <script src="archivo.js"></script>
-  <script src="emergencias.js"></script>
-  <script src="laboratorio.js"></script>
-  <script src="nucleo.js"></script>
+  <!-- Los archivos del juego se piden con un número distinto en cada carga (?v=...): así el navegador
+       nunca usa una copia vieja guardada (GitHub Pages las deja en caché hasta 10 minutos).
+       document.write mantiene el orden de carga de siempre. -->
+  <script>
+    ['supabase-config', 'game', 'characters', 'net', 'lobby', 'partida', 'mapa', 'archivo', 'emergencias', 'laboratorio', 'nucleo']
+      .forEach(function (n) { document.write('<script src="' + n + '.js?v=' + EA_V + '"><\/script>'); });
+  </script>
 </body>
 </html>
